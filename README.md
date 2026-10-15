@@ -151,14 +151,26 @@ study-buddy/
                 │   └── StudyTracker.tsx
                 ├── goals/         # Today & tomorrow goal setting with carry-forward
                 │   └── GoalsPage.tsx
-                ├── progress/      # 7-day consistency visualization and all-time aggregates
-                │   └── ProgressPage.tsx
-                ├── revision/      # Spaced review queue placeholder
-                │   └── RevisionPage.tsx
-                ├── practice/      # Practice & test engine placeholder (Phase 2)
-                │   └── PracticePage.tsx
-                ├── library/       # Notes and question bank placeholder (Phase 2/5)
-                │   └── LibraryPage.tsx
+                ├── practice/      # Practice & test engine (Practice Mode vs Timed Exam Mode)
+                │   ├── PracticePage.tsx
+                │   ├── QuizConfigModal.tsx   # Configurable exams, topics, count, and timer
+                │   ├── QuizRunner.tsx        # Keyboard navigation, palette, KaTeX math
+                │   └── TestResultSummary.tsx # Sectional breakdown & mistake classifier trigger
+                ├── library/       # Question Bank browser & JSON pack importer
+                │   ├── LibraryPage.tsx       # Multi-faceted search, exam/topic filters
+                │   └── PackImporterModal.tsx # Drag-and-drop JSON pack validator with row errors
+                ├── revision/      # Spaced review queue & Mistake Book
+                │   ├── RevisionPage.tsx
+                │   ├── RevisionQueue.tsx             # SM-2 Flashcard sprint & backlog handling
+                │   ├── MistakeBook.tsx               # Root-cause error analytics & filters
+                │   └── MistakeClassificationModal.tsx # Error categorization & reflection notes
+                ├── progress/      # Consistency visualization & Weak-Area Diagnosis
+                │   ├── ProgressPage.tsx
+                │   └── WeakAreaDiagnosis.tsx # 15-attempt sample safeguard & quadrant diagnosis
+                ├── notes/         # Study Notebook, Formulas & Current Affairs
+                │   ├── NotebookPage.tsx      # Formula repository with one-click copy
+                │   ├── CurrentAffairsFeed.tsx # Chronological dated news compilations
+                │   └── NoteModal.tsx         # Markdown editor with live preview
                 └── settings/      # JSON export, file restore, and state reset
                     └── SettingsPage.tsx
 ```
@@ -288,10 +300,10 @@ For the detailed breakdown of remaining modules and architectural tasks, see [`P
   - PWA shell, dark luxury theme, responsive layout.
   - Complete Today dashboard, daily session tracker, goal management with carry-forward, 25m Pomodoro sprint timer.
   - Cloudflare D1 schema (12 tables), Hono edge API, and offline-first LocalStorage fallback.
-- **Phase 2: Question Library & Practice Engine** *(Status: Pending)*
-  - Schema-validated JSON question pack importer with duplicate prevention.
-  - Full-text search and filter by exam, shift, topic, and difficulty.
-  - Interactive test runner (timed drills, sectional mocks, instant answer explanations).
+- **Phase 2: Question Library & Practice Engine** *(Status: Completed)*
+  - Schema-validated JSON question pack importer with row-level error reporting.
+  - Multi-faceted question bank browser with instant search, filters, and bookmarking.
+  - Interactive test runner with Practice Mode (instant explanations) and Timed Exam Mode.
 - **Phase 3: Mistake Book & Mock Analysis** *(Status: Pending)*
   - Post-test diagnostic breakdown (score, pace, unanswered items).
   - Categorization of errors (concept gap, calculation, misread, guess, time pressure).

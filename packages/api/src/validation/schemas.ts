@@ -240,3 +240,67 @@ export const backupDataSchema = z.object({
 });
 
 export type BackupDataInput = z.infer<typeof backupDataSchema>;
+
+// ─── Mistakes & Revision ───────────────────────────────────────
+
+export const updateMistakeSchema = z.object({
+  errorType: z.enum([
+    'concept_gap',
+    'calculation_error',
+    'misread_question',
+    'guessed_answer',
+    'time_pressure',
+    'other',
+  ]).optional(),
+  notes: z.string().nullable().optional(),
+  revisionStatus: z.enum(['pending', 'reviewed', 'mastered', 'suspended']).optional(),
+  nextReviewDate: z.string().nullable().optional(),
+  reviewCount: z.number().int().optional(),
+});
+
+export type UpdateMistakeInput = z.infer<typeof updateMistakeSchema>;
+
+export const reviewRevisionSchema = z.object({
+  grade: z.enum(['easy', 'difficult', 'forgot']),
+});
+
+export type ReviewRevisionInput = z.infer<typeof reviewRevisionSchema>;
+
+export const rescheduleRevisionSchema = z.object({
+  mode: z.enum(['spread_3_days', 'defer_tomorrow', 'reset']),
+});
+
+export type RescheduleRevisionInput = z.infer<typeof rescheduleRevisionSchema>;
+
+// ─── Notes ─────────────────────────────────────────────────────
+
+export const createNoteSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required'),
+  content: z.string().default(''),
+  subject: z.string().nullable().optional(),
+  topic: z.string().nullable().optional(),
+  tags: z.array(z.string()).default([]),
+  type: z.enum(['concept', 'formula', 'shortcut', 'vocabulary', 'fact', 'reminder', 'current_affairs']).default('concept'),
+  examRelevance: z.array(z.string()).default([]),
+  sourceUrl: z.string().nullable().optional(),
+  sourceName: z.string().nullable().optional(),
+  eventDate: z.string().nullable().optional(),
+  isBookmarked: z.boolean().default(false),
+});
+
+export const updateNoteSchema = z.object({
+  title: z.string().trim().min(1).optional(),
+  content: z.string().optional(),
+  subject: z.string().nullable().optional(),
+  topic: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  type: z.enum(['concept', 'formula', 'shortcut', 'vocabulary', 'fact', 'reminder', 'current_affairs']).optional(),
+  examRelevance: z.array(z.string()).optional(),
+  sourceUrl: z.string().nullable().optional(),
+  sourceName: z.string().nullable().optional(),
+  eventDate: z.string().nullable().optional(),
+  isBookmarked: z.boolean().optional(),
+});
+
+export type CreateNoteInput = z.infer<typeof createNoteSchema>;
+export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;

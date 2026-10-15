@@ -9,6 +9,7 @@ import { StudyTracker } from './features/tracker/StudyTracker';
 import { GoalsPage } from './features/goals/GoalsPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { RevisionPage } from './features/revision/RevisionPage';
+import { NotebookPage } from './features/notes/NotebookPage';
 
 export const App: React.FC = () => {
   return (
@@ -22,7 +23,7 @@ export const App: React.FC = () => {
         <Route path="/goals" element={<GoalsPage />} />
         <Route path="/planner" element={<Navigate to="/goals" replace />} />
         <Route path="/revision" element={<RevisionPage />} />
-        <Route path="/notes" element={<Navigate to="/library" replace />} />
+        <Route path="/notes" element={<NotebookPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

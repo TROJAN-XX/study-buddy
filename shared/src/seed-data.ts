@@ -1,4 +1,4 @@
-import type { Exam, Subject, Topic, Question } from './types';
+import type { Exam, Subject, Topic, Question, Note } from './types';
 
 // ─── Seed Exams ────────────────────────────────────────────────
 
@@ -287,6 +287,82 @@ export const SAMPLE_QUESTIONS: Question[] = [
     verificationStatus: 'verified',
     tags: ['banking-awareness', 'rbi', 'sfb', 'ibps-po'],
     packId: 'sample-pack-01',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+export interface TaxonomySubject extends Subject {
+  topics: Topic[];
+}
+
+export const TAXONOMY: TaxonomySubject[] = SUBJECTS.map((s) => ({
+  ...s,
+  topics: TOPICS.filter((t) => t.subjectId === s.id),
+}));
+
+export const SAMPLE_NOTES: Note[] = [
+  {
+    id: 'note-001',
+    title: 'Speed Conversion Trick (km/h ↔ m/s)',
+    content: 'To convert speed from km/h to m/s, multiply by 5/18:\nSpeed (m/s) = Speed (km/h) × 5/18\n\nTo convert speed from m/s to km/h, multiply by 18/5:\nSpeed (km/h) = Speed (m/s) × 18/5\n\nMemory Anchor: 18 km/h = 5 m/s, 36 km/h = 10 m/s, 72 km/h = 20 m/s.',
+    subject: 'Quantitative Aptitude',
+    topic: 'Arithmetic',
+    tags: ['arithmetic', 'time-speed-distance', 'shortcut', 'ssc'],
+    type: 'shortcut',
+    examRelevance: ['SSC CGL', 'TNPSC Group 4', 'IBPS PO'],
+    sourceUrl: null,
+    sourceName: null,
+    eventDate: null,
+    isBookmarked: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'note-002',
+    title: 'Quadratic Equation Roots & Discriminant Relations',
+    content: 'For quadratic equation ax² + bx + c = 0, roots are given by:\nx = (-b ± √(b² - 4ac)) / (2a)\n\nDiscriminant D = b² - 4ac:\n• If D > 0: Two distinct real roots\n• If D = 0: Two equal real roots (-b/2a)\n• If D < 0: Complex conjugate roots\n\nRoot Relations:\n• Sum of roots (α + β) = -b/a\n• Product of roots (αβ) = c/a',
+    subject: 'Quantitative Aptitude',
+    topic: 'Algebra',
+    tags: ['algebra', 'quadratic-equations', 'formulas'],
+    type: 'formula',
+    examRelevance: ['SSC CGL', 'IBPS PO', 'SBI PO'],
+    sourceUrl: null,
+    sourceName: null,
+    eventDate: null,
+    isBookmarked: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'note-003',
+    title: 'Kalaignar Magalir Urimai Thittam',
+    content: 'A flagship universal social security scheme launched across Tamil Nadu providing ₹1,000 monthly financial assistance directly into bank accounts of eligible women heads of families.\n\nKey Facts:\n• Launched: September 15 (Birth anniversary of former CM C.N. Annadurai)\n• Implemented by: Department of Special Programme Implementation, Govt of Tamil Nadu\n• Mode: Direct Benefit Transfer (DBT)',
+    subject: 'Current Affairs',
+    topic: 'Tamil Nadu Current Affairs',
+    tags: ['tamil-nadu', 'schemes', 'dbt', 'tnpsc-group4'],
+    type: 'current_affairs',
+    examRelevance: ['TNPSC Group 4', 'TNPSC Group 2/2A'],
+    sourceUrl: 'https://www.tn.gov.in',
+    sourceName: 'Govt of Tamil Nadu Official Portal',
+    eventDate: '2024-09-15',
+    isBookmarked: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'note-004',
+    title: 'RBI Prompt Corrective Action (PCA) Framework',
+    content: 'A structured early intervention mechanism invoked by the Reserve Bank of India when a commercial bank falls below stipulated supervisory thresholds.\n\nThree Supervised Metrics:\n1. Capital to Risk-Weighted Assets Ratio (CRAR)\n2. Net Non-Performing Assets (Net NPA)\n3. Tier-1 Leverage Ratio\n\nRestrictions: Discretionary branch expansion freeze, dividend stoppage, cap on lending to high-risk sectors.',
+    subject: 'Exam-specific Topics',
+    topic: 'Banking Awareness',
+    tags: ['banking-awareness', 'rbi', 'pca', 'ibps', 'sbi'],
+    type: 'concept',
+    examRelevance: ['IBPS PO', 'SBI PO', 'IBPS SO'],
+    sourceUrl: 'https://rbi.org.in',
+    sourceName: 'RBI Master Circulars',
+    eventDate: null,
+    isBookmarked: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },

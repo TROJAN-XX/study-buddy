@@ -8,6 +8,7 @@ import { formatDuration, formatDate } from '../../lib/utils';
 import type { StudySession } from '@study-buddy/shared';
 import { BarChart3, Clock, CheckCircle2, TrendingUp, Calendar, BookOpen, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { WeakAreaDiagnosis } from './WeakAreaDiagnosis';
 
 interface DayStat {
   date: string;
@@ -283,6 +284,9 @@ export const ProgressPage: React.FC = () => {
               })}
             </div>
           </Card>
+
+          {/* Weak-Area Diagnosis */}
+          <WeakAreaDiagnosis />
         </>
       )}
     </div>

@@ -11,6 +11,9 @@ import taxonomyRoute from './routes/taxonomy';
 import backupRoute from './routes/backup';
 import questionsRoute from './routes/questions';
 import practiceRoute from './routes/practice';
+import mistakesRoute from './routes/mistakes';
+import revisionsRoute from './routes/revisions';
+import notesRoute from './routes/notes';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -55,6 +58,9 @@ app.route('/api', taxonomyRoute); // provides /api/subjects and /api/topics
 app.route('/api/taxonomy', taxonomyRoute); // provides /api/taxonomy/subjects and /api/taxonomy/topics
 app.route('/api/questions', questionsRoute);
 app.route('/api/practice', practiceRoute);
+app.route('/api/mistakes', mistakesRoute);
+app.route('/api/revisions', revisionsRoute);
+app.route('/api/notes', notesRoute);
 app.route('/api/backup', backupRoute);
 
 // 404 Not Found Handler

@@ -54,6 +54,10 @@ async function requestApi<T>(path: string, options: RequestInit = {}): Promise<T
   }
 }
 
+export interface MistakeDetail extends Mistake {
+  question?: Question | null;
+}
+
 export const apiClient = {
   dashboard: {
     async get(): Promise<DashboardData> {
@@ -252,9 +256,119 @@ export const apiClient = {
   },
 
   revisions: {
-    async list(status?: string): Promise<RevisionItem[]> {
+    async list(filters?: { status?: string; dueOnly?: boolean }): Promise<RevisionItem[]> {
+      const params = new URLSearchParams();
+      if (filters?.status) params.set('status', filters.status);
+      if (filters?.dueOnly) params.set('dueOnly', 'true');
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+
+      const remote = await requestApi<RevisionItem[]>(`/api/revisions${queryStr}`);
+      if (remote && Array.isArray(remote)) return remote;
+
       const items = storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
-      return status ? items.filter((r) => r.status === status) : items;
+      const today = getToday();
+      return items.filter((r) => {
+        if (filters?.status && r.status !== filters.status) return false;
+        if (filters?.dueOnly) {
+          if (r.status === 'mastered' || r.status === 'suspended') return false;
+          if (r.nextReview > today) return false;
+        }
+        return true;
+      });
+    },
+
+    async review(
+      id: string,
+      grade: 'easy' | 'difficult' | 'forgot'
+    ): Promise<RevisionItem | null> {
+      const item = storage.getById<RevisionItem>(STORAGE_KEYS.REVISION, id);
+      if (!item) return null;
+
+      let interval = item.intervalDays;
+      let ease = item.easeFactor;
+      let status = item.status;
+
+      if (grade === 'easy') {
+        interval = Math.max(1, Math.round(interval * ease));
+        ease = Math.min(3.0, ease + 0.15);
+        status = interval >= 21 ? 'mastered' : 'reviewed';
+      } else if (grade === 'difficult') {
+        interval = Math.max(1, Math.round(interval * 1.2));
+        ease = Math.max(1.3, ease - 0.15);
+        status = 'reviewed';
+      } else {
+        interval = 1;
+        ease = Math.max(1.3, ease - 0.2);
+        status = 'pending';
+      }
+
+      const nextDate = new Date();
+      nextDate.setDate(nextDate.getDate() + interval);
+      const nextReview = nextDate.toISOString().split('T')[0];
+
+      const updated = storage.update<RevisionItem>(STORAGE_KEYS.REVISION, id, {
+        intervalDays: interval,
+        easeFactor: ease,
+        status,
+        nextReview,
+      });
+
+      if (item.sourceType === 'mistake') {
+        const mistake = storage.getById<Mistake>(STORAGE_KEYS.MISTAKES, item.sourceId);
+        if (mistake) {
+          storage.update<Mistake>(STORAGE_KEYS.MISTAKES, item.sourceId, {
+            revisionStatus: status,
+            nextReviewDate: nextReview,
+            reviewCount: mistake.reviewCount + 1,
+          });
+        }
+      }
+
+      await requestApi<RevisionItem>(`/api/revisions/${id}/review`, {
+        method: 'POST',
+        body: JSON.stringify({ grade }),
+      });
+
+      return updated;
+    },
+
+    async reschedule(mode: 'spread_3_days' | 'defer_tomorrow' | 'reset'): Promise<number> {
+      const today = getToday();
+      const all = storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
+      const overdue = all.filter((r) => r.nextReview < today && r.status === 'pending');
+
+      if (overdue.length === 0) return 0;
+
+      const updatedAll = all.map((r, index) => {
+        if (r.nextReview < today && r.status === 'pending') {
+          let newDateStr = today;
+          if (mode === 'spread_3_days') {
+            const offset = (index % 3) + 1;
+            const target = new Date();
+            target.setDate(target.getDate() + offset);
+            newDateStr = target.toISOString().split('T')[0];
+          } else if (mode === 'defer_tomorrow') {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            newDateStr = tomorrow.toISOString().split('T')[0];
+          }
+          return {
+            ...r,
+            nextReview: newDateStr,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return r;
+      });
+
+      storage.setAll(STORAGE_KEYS.REVISION, updatedAll);
+
+      await requestApi('/api/revisions/reschedule', {
+        method: 'POST',
+        body: JSON.stringify({ mode }),
+      });
+
+      return overdue.length;
     },
 
     async create(
@@ -265,6 +379,80 @@ export const apiClient = {
 
     async update(id: string, data: Partial<RevisionItem>): Promise<RevisionItem | null> {
       return storage.update<RevisionItem>(STORAGE_KEYS.REVISION, id, data);
+    },
+  },
+
+  mistakes: {
+    async list(filters?: {
+      errorType?: string;
+      revisionStatus?: string;
+      subject?: string;
+      topic?: string;
+    }): Promise<MistakeDetail[]> {
+      const params = new URLSearchParams();
+      if (filters?.errorType) params.set('errorType', filters.errorType);
+      if (filters?.revisionStatus) params.set('revisionStatus', filters.revisionStatus);
+      if (filters?.subject) params.set('subject', filters.subject);
+      if (filters?.topic) params.set('topic', filters.topic);
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+
+      const remote = await requestApi<MistakeDetail[]>(`/api/mistakes${queryStr}`);
+      if (remote && Array.isArray(remote)) return remote;
+
+      let allMistakes = storage.getAll<Mistake>(STORAGE_KEYS.MISTAKES);
+      const allQuestions = storage.getAll<Question>(STORAGE_KEYS.QUESTIONS);
+      const qMap = new Map(allQuestions.map((q) => [q.id, q]));
+
+      if (filters?.errorType) {
+        allMistakes = allMistakes.filter((m) => m.errorType === filters.errorType);
+      }
+      if (filters?.revisionStatus) {
+        allMistakes = allMistakes.filter((m) => m.revisionStatus === filters.revisionStatus);
+      }
+
+      return allMistakes
+        .map((m) => {
+          const q = qMap.get(m.questionId) || null;
+          return { ...m, question: q };
+        })
+        .filter((m) => {
+          if (filters?.subject && m.question?.subject !== filters.subject) return false;
+          if (filters?.topic && m.question?.topic !== filters.topic) return false;
+          return true;
+        });
+    },
+
+    async get(id: string): Promise<MistakeDetail | null> {
+      const remote = await requestApi<MistakeDetail>(`/api/mistakes/${id}`);
+      if (remote) return remote;
+
+      const m = storage.getById<Mistake>(STORAGE_KEYS.MISTAKES, id);
+      if (!m) return null;
+      const q = storage.getById<Question>(STORAGE_KEYS.QUESTIONS, m.questionId);
+      return { ...m, question: q };
+    },
+
+    async update(id: string, data: Partial<Mistake>): Promise<Mistake | null> {
+      const local = storage.update<Mistake>(STORAGE_KEYS.MISTAKES, id, data);
+      if (local) {
+        await requestApi<Mistake>(`/api/mistakes/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        });
+      }
+      return local;
+    },
+
+    async delete(id: string): Promise<boolean> {
+      const removed = storage.remove(STORAGE_KEYS.MISTAKES, id);
+      if (removed) {
+        const revs = storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
+        const filtered = revs.filter((r) => !(r.sourceType === 'mistake' && r.sourceId === id));
+        storage.setAll(STORAGE_KEYS.REVISION, filtered);
+
+        await requestApi(`/api/mistakes/${id}`, { method: 'DELETE' });
+      }
+      return removed;
     },
   },
 
@@ -464,6 +652,85 @@ export const apiClient = {
     async isBookmarked(targetId: string): Promise<boolean> {
       const all = storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS);
       return all.some((b) => b.targetId === targetId);
+    },
+  },
+
+  notes: {
+    async list(filters?: {
+      subject?: string;
+      topic?: string;
+      type?: string;
+      q?: string;
+      isBookmarked?: boolean;
+    }): Promise<Note[]> {
+      const params = new URLSearchParams();
+      if (filters?.subject) params.set('subject', filters.subject);
+      if (filters?.topic) params.set('topic', filters.topic);
+      if (filters?.type) params.set('type', filters.type);
+      if (filters?.q) params.set('q', filters.q);
+      if (filters?.isBookmarked) params.set('isBookmarked', 'true');
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+
+      const remote = await requestApi<Note[]>(`/api/notes${queryStr}`);
+      if (remote && Array.isArray(remote)) return remote;
+
+      let notes = storage.getAll<Note>(STORAGE_KEYS.NOTES);
+      if (filters?.subject) {
+        notes = notes.filter((n) => n.subject === filters.subject);
+      }
+      if (filters?.topic) {
+        notes = notes.filter((n) => n.topic === filters.topic);
+      }
+      if (filters?.type) {
+        notes = notes.filter((n) => n.type === filters.type);
+      }
+      if (filters?.isBookmarked) {
+        notes = notes.filter((n) => n.isBookmarked);
+      }
+      if (filters?.q) {
+        const query = filters.q.toLowerCase();
+        notes = notes.filter(
+          (n) =>
+            n.title.toLowerCase().includes(query) ||
+            n.content.toLowerCase().includes(query) ||
+            n.tags.some((t) => t.toLowerCase().includes(query))
+        );
+      }
+      return notes;
+    },
+
+    async get(id: string): Promise<Note | null> {
+      const remote = await requestApi<Note>(`/api/notes/${id}`);
+      if (remote) return remote;
+      return storage.getById<Note>(STORAGE_KEYS.NOTES, id);
+    },
+
+    async create(data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>): Promise<Note> {
+      const local = storage.create<Note>(STORAGE_KEYS.NOTES, data);
+      await requestApi<Note>('/api/notes', {
+        method: 'POST',
+        body: JSON.stringify(local),
+      });
+      return local;
+    },
+
+    async update(id: string, data: Partial<Note>): Promise<Note | null> {
+      const local = storage.update<Note>(STORAGE_KEYS.NOTES, id, data);
+      if (local) {
+        await requestApi<Note>(`/api/notes/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        });
+      }
+      return local;
+    },
+
+    async delete(id: string): Promise<boolean> {
+      const removed = storage.remove(STORAGE_KEYS.NOTES, id);
+      if (removed) {
+        await requestApi(`/api/notes/${id}`, { method: 'DELETE' });
+      }
+      return removed;
     },
   },
 

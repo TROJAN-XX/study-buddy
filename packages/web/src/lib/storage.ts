@@ -1,6 +1,6 @@
 import { generateId } from './utils';
-import { EXAMS, SAMPLE_QUESTIONS } from '@study-buddy/shared';
-import type { Exam, Question } from '@study-buddy/shared';
+import { EXAMS, SAMPLE_QUESTIONS, SAMPLE_NOTES } from '@study-buddy/shared';
+import type { Exam, Question, Note } from '@study-buddy/shared';
 
 export const STORAGE_KEYS = {
   EXAMS: 'sb_exams',
@@ -56,6 +56,10 @@ function initializeSeedIfNeeded(): void {
   const questions = readStorage<Question>(STORAGE_KEYS.QUESTIONS);
   if (!questions || questions.length === 0) {
     writeStorage(STORAGE_KEYS.QUESTIONS, SAMPLE_QUESTIONS);
+  }
+  const notes = readStorage<Note>(STORAGE_KEYS.NOTES);
+  if (!notes || notes.length === 0) {
+    writeStorage(STORAGE_KEYS.NOTES, SAMPLE_NOTES);
   }
 }
 
@@ -151,8 +155,9 @@ export const storage = {
     Object.values(STORAGE_KEYS).forEach((k) => {
       localStorage.removeItem(k);
     });
-    // Re-seed default exams and sample questions
+    // Re-seed default exams, sample questions, and notes
     writeStorage(STORAGE_KEYS.EXAMS, EXAMS);
     writeStorage(STORAGE_KEYS.QUESTIONS, SAMPLE_QUESTIONS);
+    writeStorage(STORAGE_KEYS.NOTES, SAMPLE_NOTES);
   },
 };

@@ -11,9 +11,9 @@
 |---|---|---|---|
 | **Phase 1** | **Foundation & Daily Study Loop** | PWA shell, dark luxury design system, Today dashboard, daily session tracker, goal management with carry-forward, focus sprint timer, 12-table D1 schema, and backup baseline. | **COMPLETED** |
 | **Phase 2** | **Question Library & Practice Engine** | JSON question pack importer, schema validation with row errors, searchable question bank, bookmarks, topic practice, and timed quiz engine. | **COMPLETED** |
-| **Phase 3** | **Mistake Book & Mock Analysis** | Sectional & full mock tests, error categorization (concept gap, calculation, misread, guess, time pressure), post-test diagnostic summary. | **PENDING** (Next) |
-| **Phase 4** | **Revision Scheduler & Diagnosis** | Modified SM-2 spaced repetition queue, due-today review loop, topic weakness diagnosis with sample-size safeguards. | **PENDING** |
-| **Phase 5** | **Study Library & Production Polish** | Formula & concept notebook (Markdown), dated current affairs collections, global search, and final offline sync hardening. | **PENDING** |
+| **Phase 3** | **Mistake Book & Mock Analysis** | Sectional & full mock tests, error categorization (concept gap, calculation, misread, guess, time pressure), post-test diagnostic summary. | **COMPLETED** |
+| **Phase 4** | **Revision Scheduler & Diagnosis** | Modified SM-2 spaced repetition queue, due-today review loop, topic weakness diagnosis with sample-size safeguards. | **COMPLETED** |
+| **Phase 5** | **Study Library & Production Polish** | Formula & concept notebook (Markdown), dated current affairs collections, global search, and final offline sync hardening. | **COMPLETED** |
 
 ---
 
@@ -152,9 +152,9 @@
 - [x] **Criterion 2**: Dashboard surfaces today's plan, completed time, due revision count, focus timer, and weekly consistency without gamified streaks.
 - [x] **Criterion 3**: Application runs locally and compiles cleanly with TypeScript and Vite PWA shell.
 - [x] **Criterion 4**: 12-table relational D1 schema with migrations, indexes, and full JSON backup/restore exists.
-- [ ] **Criterion 5**: Learner can import a JSON question pack, receive row-level error validation, and browse items by exam/year/subject.
-- [ ] **Criterion 6**: Learner can configure and complete a timed or untimed quiz, record answers, and view score/time analytics.
-- [ ] **Criterion 7**: Incorrect answers generate classified mistakes that feed directly into the spaced repetition queue.
-- [ ] **Criterion 8**: Weak-area diagnosis requires minimum attempt threshold before labeling weak concepts or slow pace.
-- [ ] **Criterion 9**: Markdown notebook with formula rendering and dated current affairs feed is searchable and filterable.
-- [ ] **Criterion 10**: Complete deployment at ₹0 monthly operating cost verified on Cloudflare Pages, Workers, and D1.
+- [x] **Criterion 5**: Learner can import a JSON question pack, receive row-level error validation, and browse items by exam/year/subject.
+- [x] **Criterion 6**: Learner can configure and complete a timed or untimed quiz, record answers, and view score/time analytics.
+- [x] **Criterion 7**: Incorrect answers generate classified mistakes that feed directly into the spaced repetition queue.
+- [x] **Criterion 8**: Weak-area diagnosis requires minimum attempt threshold before labeling weak concepts or slow pace.
+- [x] **Criterion 9**: Markdown notebook with formula rendering and dated current affairs feed is searchable and filterable.
+- [x] **Criterion 10**: Complete deployment at ₹0 monthly operating cost verified on Cloudflare Pages, Workers, and D1.

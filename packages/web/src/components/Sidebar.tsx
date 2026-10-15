@@ -44,7 +44,7 @@ export const Sidebar: React.FC = () => {
             Study Buddy
           </span>
           <span className="text-[10px] text-accent font-medium uppercase tracking-wider -mt-0.5">
-            Phase 1 • Focus
+            Focus & Mastery
           </span>
         </div>
       </div>
