@@ -1,0 +1,27 @@
+{
+  "name": "study-buddy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal Competitive Exam Preparation Platform",
+  "workspaces": [
+    "shared",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=packages/web",
+    "dev:api": "npm run dev --workspace=packages/api",
+    "build": "npm run build --workspace=packages/web",
+    "build:api": "npm run build --workspace=packages/api",
+    "preview": "npm run preview --workspace=packages/web",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "esbuild@0.17.19": true,
+    "workerd@1.20250718.0": true,
+    "sharp@0.33.5": true
+  }
+}

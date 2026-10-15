@@ -1,0 +1,15 @@
+# ==============================================================================
+# Cloudflare Worker Local Development Secrets (.dev.vars.example)
+# ==============================================================================
+# Wrangler automatically loads variables from `.dev.vars` during `wrangler dev`.
+#
+# USAGE:
+#   Copy this file to `.dev.vars` in packages/api:
+#   cp packages/api/.dev.vars.example packages/api/.dev.vars
+#
+# In production on Cloudflare:
+#   Set secret via: npx wrangler secret put API_TOKEN
+# ==============================================================================
+
+# Unguessable secret token to secure private single-user endpoints
+API_TOKEN=study-buddy-dev-token-change-in-production
