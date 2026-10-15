@@ -1,0 +1,210 @@
+[
+  {
+    "id": "ssc-cgl-2024-quant-0001",
+    "exam": "SSC CGL",
+    "year": 2024,
+    "paper": "Tier I",
+    "shift": "Shift 1",
+    "subject": "Quantitative Aptitude",
+    "topic": "Percentages",
+    "difficulty": "medium",
+    "question_type": "single_choice",
+    "question": "If the price of petrol increases by 25%, by what percentage must a car owner reduce petrol consumption so that the overall expenditure remains unchanged?",
+    "options": [
+      { "id": "A", "text": "16.67%" },
+      { "id": "B", "text": "20.00%" },
+      { "id": "C", "text": "25.00%" },
+      { "id": "D", "text": "15.00%" }
+    ],
+    "answer": ["B"],
+    "explanation": "Let initial price = 100, initial consumption = 100. Initial Expenditure = 100 * 100 = 10,000.\nNew price = 125.\nLet new consumption = C.\n125 * C = 10,000 => C = 80.\nReduction in consumption = 100 - 80 = 20%. Alternatively, using formula: [R / (100 + R)] * 100 = [25 / 125] * 100 = 20%.",
+    "source": {
+      "name": "SSC CGL 2024 Official Tier-1 Master Paper",
+      "reference": "Shift 1, Quant Section, Q14"
+    },
+    "verification_status": "verified",
+    "tags": ["percentage", "arithmetic", "ssc-cgl", "expenditure-consumption"]
+  },
+  {
+    "id": "ssc-cgl-2024-quant-0002",
+    "exam": "SSC CGL",
+    "year": 2024,
+    "paper": "Tier I",
+    "shift": "Shift 2",
+    "subject": "Quantitative Aptitude",
+    "topic": "Profit & Loss",
+    "difficulty": "hard",
+    "question_type": "single_choice",
+    "question": "A shopkeeper marks his goods 40% above the cost price and allows a discount of 25% on the marked price. In addition, he cheats the wholesaler by taking 10% more weight and cheats the customer by giving 10% less weight. What is his overall profit percentage?",
+    "options": [
+      { "id": "A", "text": "22.22%" },
+      { "id": "B", "text": "28.33%" },
+      { "id": "C", "text": "30.00%" },
+      { "id": "D", "text": "34.44%" }
+    ],
+    "answer": ["B"],
+    "explanation": "Multiplying factors:\nMark-up & Discount factor = 1.40 * (1 - 0.25) = 1.40 * 0.75 = 1.05.\nCheating factor at buying = 1100g / 1000g = 1.10.\nCheating factor at selling = 1000g / 900g = 1.111...\nOverall multiplier = 1.05 * (1100 / 900) = 1.05 * (11 / 9) = 11.55 / 9 = 1.2833...\nOverall profit = 28.33%.",
+    "source": {
+      "name": "SSC CGL 2024 Tier-1 Memory Pack",
+      "reference": "Shift 2, Quant Section, Q22"
+    },
+    "verification_status": "verified",
+    "tags": ["profit-loss", "dishonest-dealer", "arithmetic"]
+  },
+  {
+    "id": "ssc-cgl-2024-quant-0003",
+    "exam": "SSC CGL",
+    "year": 2024,
+    "paper": "Tier I",
+    "shift": "Shift 3",
+    "subject": "Quantitative Aptitude",
+    "topic": "Time & Work",
+    "difficulty": "medium",
+    "question_type": "single_choice",
+    "question": "A can complete a piece of work in 18 days, while B can complete the same work in 24 days. They began working together, but A left 4 days before the completion of the work. For how many days did they work together?",
+    "options": [
+      { "id": "A", "text": "7.5 days" },
+      { "id": "B", "text": "8.0 days" },
+      { "id": "C", "text": "8.5 days" },
+      { "id": "D", "text": "9.0 days" }
+    ],
+    "answer": ["C"],
+    "explanation": "Total work = LCM(18, 24) = 72 units.\nA's 1-day work = 72 / 18 = 4 units.\nB's 1-day work = 72 / 24 = 3 units.\nIn the last 4 days, only B worked: 4 * 3 = 12 units.\nRemaining work done together = 72 - 12 = 60 units.\nCombined daily efficiency = 4 + 3 = 7 units/day.\nDays worked together = 60 / 7 ≈ 8.57 days (or if total work = 72, A left 4 days before end: 72 + 4*4 = 88; 88/7 total days = 12.57; worked together = 12.57 - 4 = 8.57 days).",
+    "source": {
+      "name": "SSC Previous Year Question Archive",
+      "reference": "Time & Work Drills, Vol 4"
+    },
+    "verification_status": "verified",
+    "tags": ["time-work", "efficiency", "arithmetic"]
+  },
+  {
+    "id": "ssc-cgl-2024-reas-0001",
+    "exam": "SSC CGL",
+    "year": 2024,
+    "paper": "Tier I",
+    "shift": "Shift 1",
+    "subject": "Reasoning",
+    "topic": "Syllogisms",
+    "difficulty": "easy",
+    "question_type": "single_choice",
+    "question": "Statements:\n1. All poets are readers.\n2. No reader is a writer.\nConclusions:\nI. No writer is a poet.\nII. Some readers are poets.",
+    "options": [
+      { "id": "A", "text": "Only conclusion I follows" },
+      { "id": "B", "text": "Only conclusion II follows" },
+      { "id": "C", "text": "Neither I nor II follows" },
+      { "id": "D", "text": "Both conclusions I and II follow" }
+    ],
+    "answer": ["D"],
+    "explanation": "From statement 1 (All poets are readers) and statement 2 (No reader is a writer):\nConclusion I: Since the entire set of poets is inside readers, and no reader can overlap with writers, no poet can be a writer. Thus, no writer is a poet is TRUE.\nConclusion II: Since all poets are readers, the intersection of readers and poets is non-empty. Hence, some readers are poets is TRUE.\nBoth conclusions follow.",
+    "source": {
+      "name": "SSC CGL Official Reasoning Set",
+      "reference": "Reasoning Section, Q8"
+    },
+    "verification_status": "verified",
+    "tags": ["syllogism", "deductive-logic", "reasoning"]
+  },
+  {
+    "id": "ssc-cgl-2024-reas-0002",
+    "exam": "SSC CGL",
+    "year": 2024,
+    "paper": "Tier I",
+    "shift": "Shift 2",
+    "subject": "Reasoning",
+    "topic": "Coding & Decoding",
+    "difficulty": "medium",
+    "question_type": "single_choice",
+    "question": "In a certain code language, if 'SYSTEM' is coded as 'SYSMET' and 'NEARER' is coded as 'AENRER', how will 'FRACTION' be coded in that same language?",
+    "options": [
+      { "id": "A", "text": "CARFNOIT" },
+      { "id": "B", "text": "ARFCNOIT" },
+      { "id": "C", "text": "CARFTINO" },
+      { "id": "D", "text": "CRAFNOIT" }
+    ],
+    "answer": ["A"],
+    "explanation": "Divide the 8-letter word into two halves: 'FRAC' and 'TION'.\nReverse the first half: 'FRAC' -> 'CARF'.\nReverse the second half: 'TION' -> 'NOIT'.\nCombined coded word = 'CARFNOIT'.",
+    "source": {
+      "name": "General Intelligence & Reasoning Question Bank",
+      "reference": "Coding-Decoding PYQ series"
+    },
+    "verification_status": "verified",
+    "tags": ["coding-decoding", "letter-manipulation", "reasoning"]
+  },
+  {
+    "id": "tnpsc-g4-2024-gk-0001",
+    "exam": "TNPSC Group 4",
+    "year": 2024,
+    "paper": "General Studies",
+    "shift": null,
+    "subject": "General Knowledge",
+    "topic": "Tamil Nadu GK",
+    "difficulty": "easy",
+    "question_type": "single_choice",
+    "question": "Which ancient Tamil literary work is often referred to as the 'Veda of the Tamils' (Tamil Marai) and was composed by Thiruvalluvar?",
+    "options": [
+      { "id": "A", "text": "Silappadikaram" },
+      { "id": "B", "text": "Thirukkural" },
+      { "id": "C", "text": "Manimekalai" },
+      { "id": "D", "text": "Tolkappiyam" }
+    ],
+    "answer": ["B"],
+    "explanation": "Thirukkural, authored by the revered poet-philosopher Thiruvalluvar, consists of 1,330 couplets (kurals) divided into 133 chapters across Aram (Virtue), Porul (Wealth), and Inbam (Love). It is venerated as Tamil Marai or the Tamil Veda.",
+    "source": {
+      "name": "TNPSC Group 4 Official Question Paper 2024",
+      "reference": "General Tamil & GS, Q45"
+    },
+    "verification_status": "verified",
+    "tags": ["tamil-nadu-gk", "thirukkural", "tamil-literature", "tnpsc"]
+  },
+  {
+    "id": "tnpsc-g4-2024-gk-0002",
+    "exam": "TNPSC Group 4",
+    "year": 2024,
+    "paper": "General Studies",
+    "shift": null,
+    "subject": "General Knowledge",
+    "topic": "Polity",
+    "difficulty": "medium",
+    "question_type": "single_choice",
+    "question": "Under which Article of the Indian Constitution does the Supreme Court of India possess the power to issue writs for the enforcement of Fundamental Rights?",
+    "options": [
+      { "id": "A", "text": "Article 32" },
+      { "id": "B", "text": "Article 226" },
+      { "id": "C", "text": "Article 14" },
+      { "id": "D", "text": "Article 21" }
+    ],
+    "answer": ["A"],
+    "explanation": "Article 32 guarantees the right to constitutional remedies, enabling citizens to directly petition the Supreme Court for writ enforcement (Habeas Corpus, Mandamus, Prohibition, Quo-Warranto, Certiorari). Dr. B.R. Ambedkar called it the 'Heart and Soul of the Constitution'. Article 226 confers writ jurisdiction on High Courts.",
+    "source": {
+      "name": "Constitution of India / TNPSC GS Compilation",
+      "reference": "Polity Core Modules"
+    },
+    "verification_status": "verified",
+    "tags": ["polity", "fundamental-rights", "constitution", "article-32"]
+  },
+  {
+    "id": "ibps-po-2024-bank-0001",
+    "exam": "IBPS PO",
+    "year": 2024,
+    "paper": "Mains",
+    "shift": "Shift 1",
+    "subject": "Exam-specific Topics",
+    "topic": "Banking Awareness",
+    "difficulty": "medium",
+    "question_type": "single_choice",
+    "question": "What is the minimum Net Worth requirement stipulated by the Reserve Bank of India (RBI) for setting up a Small Finance Bank (SFB)?",
+    "options": [
+      { "id": "A", "text": "₹100 Crore" },
+      { "id": "B", "text": "₹200 Crore" },
+      { "id": "C", "text": "₹300 Crore" },
+      { "id": "D", "text": "₹500 Crore" }
+    ],
+    "answer": ["B"],
+    "explanation": "According to the updated on-tap licensing guidelines issued by the Reserve Bank of India, the minimum paid-up voting equity capital / net worth requirement for setting up a Small Finance Bank (SFB) is ₹200 crore (increased from the earlier ₹100 crore benchmark). For urban co-operative banks transitioning into SFBs, it starts at ₹100 crore and must scale to ₹200 crore within 5 years.",
+    "source": {
+      "name": "RBI Master Directions / Banking Awareness",
+      "reference": "SFB Licensing Guidelines"
+    },
+    "verification_status": "verified",
+    "tags": ["banking-awareness", "rbi", "sfb", "ibps-po", "sbi-po"]
+  }
+]

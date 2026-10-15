@@ -76,7 +76,7 @@ export interface QuestionOption {
 
 export interface QuestionSource {
   name: string;
-  reference?: string;
+  reference?: string | null;
 }
 
 export interface Question {

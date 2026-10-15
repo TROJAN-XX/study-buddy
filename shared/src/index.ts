@@ -1,2 +1,3 @@
 export * from './types';
-export { EXAMS, SUBJECTS, TOPICS } from './seed-data';
+export * from './schemas';
+export { EXAMS, SUBJECTS, TOPICS, SAMPLE_QUESTIONS } from './seed-data';

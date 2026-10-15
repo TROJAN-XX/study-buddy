@@ -1,6 +1,6 @@
 import { generateId } from './utils';
-import { EXAMS } from '@study-buddy/shared';
-import type { Exam } from '@study-buddy/shared';
+import { EXAMS, SAMPLE_QUESTIONS } from '@study-buddy/shared';
+import type { Exam, Question } from '@study-buddy/shared';
 
 export const STORAGE_KEYS = {
   EXAMS: 'sb_exams',
@@ -53,6 +53,10 @@ function initializeSeedIfNeeded(): void {
   if (!exams || exams.length === 0) {
     writeStorage(STORAGE_KEYS.EXAMS, EXAMS);
   }
+  const questions = readStorage<Question>(STORAGE_KEYS.QUESTIONS);
+  if (!questions || questions.length === 0) {
+    writeStorage(STORAGE_KEYS.QUESTIONS, SAMPLE_QUESTIONS);
+  }
 }
 
 // Run initial seed on load
@@ -78,17 +82,17 @@ export const storage = {
   /**
    * Create a new item with auto-generated id and timestamps
    */
-  create<T extends { id: string; createdAt: string; updatedAt: string }>(
+  create<T extends { id: string }>(
     key: string,
-    item: Omit<T, 'id' | 'createdAt' | 'updatedAt'> & Partial<Pick<T, 'id' | 'createdAt' | 'updatedAt'>>
+    item: Omit<T, 'id' | 'createdAt' | 'updatedAt'> & Partial<T>
   ): T {
     const now = new Date().toISOString();
     const newItem = {
+      createdAt: now,
+      updatedAt: now,
       ...item,
-      id: item.id || generateId(),
-      createdAt: item.createdAt || now,
-      updatedAt: item.updatedAt || now,
-    } as T;
+      id: (item as any).id || generateId(),
+    } as unknown as T;
 
     const items = readStorage<T>(key);
     items.unshift(newItem);
@@ -147,7 +151,8 @@ export const storage = {
     Object.values(STORAGE_KEYS).forEach((k) => {
       localStorage.removeItem(k);
     });
-    // Re-seed default exams
+    // Re-seed default exams and sample questions
     writeStorage(STORAGE_KEYS.EXAMS, EXAMS);
+    writeStorage(STORAGE_KEYS.QUESTIONS, SAMPLE_QUESTIONS);
   },
 };

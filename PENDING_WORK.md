@@ -10,8 +10,8 @@
 | Phase | Milestone Name | Scope Summary | Status |
 |---|---|---|---|
 | **Phase 1** | **Foundation & Daily Study Loop** | PWA shell, dark luxury design system, Today dashboard, daily session tracker, goal management with carry-forward, focus sprint timer, 12-table D1 schema, and backup baseline. | **COMPLETED** |
-| **Phase 2** | **Question Library & Practice Engine** | JSON question pack importer, schema validation with row errors, searchable question bank, bookmarks, topic practice, and timed quiz engine. | **PENDING** (Next) |
-| **Phase 3** | **Mistake Book & Mock Analysis** | Sectional & full mock tests, error categorization (concept gap, calculation, misread, guess, time pressure), post-test diagnostic summary. | **PENDING** |
+| **Phase 2** | **Question Library & Practice Engine** | JSON question pack importer, schema validation with row errors, searchable question bank, bookmarks, topic practice, and timed quiz engine. | **COMPLETED** |
+| **Phase 3** | **Mistake Book & Mock Analysis** | Sectional & full mock tests, error categorization (concept gap, calculation, misread, guess, time pressure), post-test diagnostic summary. | **PENDING** (Next) |
 | **Phase 4** | **Revision Scheduler & Diagnosis** | Modified SM-2 spaced repetition queue, due-today review loop, topic weakness diagnosis with sample-size safeguards. | **PENDING** |
 | **Phase 5** | **Study Library & Production Polish** | Formula & concept notebook (Markdown), dated current affairs collections, global search, and final offline sync hardening. | **PENDING** |
 

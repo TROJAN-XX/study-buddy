@@ -13,8 +13,11 @@ import type {
   Mistake,
   Note,
   Bookmark,
+  BookmarkTargetType,
   ApiResponse,
+  PackValidationResult,
 } from '@study-buddy/shared';
+import { validateQuestionPack } from '@study-buddy/shared';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 const API_TOKEN = import.meta.env.VITE_API_TOKEN || '';
@@ -262,6 +265,205 @@ export const apiClient = {
 
     async update(id: string, data: Partial<RevisionItem>): Promise<RevisionItem | null> {
       return storage.update<RevisionItem>(STORAGE_KEYS.REVISION, id, data);
+    },
+  },
+
+  questions: {
+    async list(filters?: {
+      exam?: string;
+      subject?: string;
+      topic?: string;
+      difficulty?: string;
+      q?: string;
+    }): Promise<Question[]> {
+      const params = new URLSearchParams();
+      if (filters?.exam) params.set('exam', filters.exam);
+      if (filters?.subject) params.set('subject', filters.subject);
+      if (filters?.topic) params.set('topic', filters.topic);
+      if (filters?.difficulty) params.set('difficulty', filters.difficulty);
+      if (filters?.q) params.set('q', filters.q);
+      params.set('pageSize', '100');
+
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+      const remote = await requestApi<{ data: Question[] } | Question[]>(`/api/questions${queryStr}`);
+      if (remote) {
+        return Array.isArray(remote) ? remote : (remote as any).data || [];
+      }
+
+      let questions = storage.getAll<Question>(STORAGE_KEYS.QUESTIONS);
+      if (filters?.exam) {
+        questions = questions.filter((q) => q.exam === filters.exam);
+      }
+      if (filters?.subject) {
+        questions = questions.filter((q) => q.subject === filters.subject);
+      }
+      if (filters?.topic) {
+        questions = questions.filter((q) => q.topic === filters.topic);
+      }
+      if (filters?.difficulty) {
+        questions = questions.filter((q) => q.difficulty === filters.difficulty);
+      }
+      if (filters?.q) {
+        const query = filters.q.toLowerCase();
+        questions = questions.filter(
+          (q) =>
+            q.questionText.toLowerCase().includes(query) ||
+            q.tags.some((t) => t.toLowerCase().includes(query)) ||
+            q.options.some((o) => o.text.toLowerCase().includes(query))
+        );
+      }
+      return questions;
+    },
+
+    async get(id: string): Promise<Question | null> {
+      const remote = await requestApi<Question>(`/api/questions/${id}`);
+      if (remote) return remote;
+      return storage.getById<Question>(STORAGE_KEYS.QUESTIONS, id);
+    },
+
+    async importPack(
+      data: unknown,
+      strategy: 'skip' | 'overwrite' = 'skip'
+    ): Promise<PackValidationResult> {
+      const validation = validateQuestionPack(data);
+
+      if (validation.questions.length > 0) {
+        const existing = storage.getAll<Question>(STORAGE_KEYS.QUESTIONS);
+        const existingMap = new Map(existing.map((q) => [q.id, q]));
+
+        for (const q of validation.questions) {
+          if (strategy === 'overwrite' || !existingMap.has(q.id)) {
+            existingMap.set(q.id, q);
+          }
+        }
+
+        storage.setAll(STORAGE_KEYS.QUESTIONS, Array.from(existingMap.values()));
+
+        // Also sync to remote worker if available
+        await requestApi(`/api/questions/import?strategy=${strategy}`, {
+          method: 'POST',
+          body: JSON.stringify(validation.questions),
+        });
+      }
+
+      return validation;
+    },
+
+    async delete(id: string): Promise<boolean> {
+      const removed = storage.remove(STORAGE_KEYS.QUESTIONS, id);
+      if (removed) {
+        await requestApi(`/api/questions/${id}`, { method: 'DELETE' });
+      }
+      return removed;
+    },
+  },
+
+  practice: {
+    async listTests(limit: number = 20): Promise<PracticeTest[]> {
+      const remote = await requestApi<PracticeTest[]>(`/api/practice/tests?limit=${limit}`);
+      if (remote && Array.isArray(remote)) return remote;
+      return storage.getAll<PracticeTest>(STORAGE_KEYS.TESTS).slice(0, limit);
+    },
+
+    async getTest(id: string): Promise<{ test: PracticeTest; attempts: PracticeAttempt[] } | null> {
+      const remote = await requestApi<{ test: PracticeTest; attempts: PracticeAttempt[] }>(`/api/practice/tests/${id}`);
+      if (remote) return remote;
+
+      const test = storage.getById<PracticeTest>(STORAGE_KEYS.TESTS, id);
+      if (!test) return null;
+      const allAttempts = storage.getAll<PracticeAttempt>(STORAGE_KEYS.ATTEMPTS);
+      const attempts = allAttempts.filter((a) => a.testId === id);
+      return { test, attempts };
+    },
+
+    async submitTest(
+      test: PracticeTest,
+      attempts: PracticeAttempt[]
+    ): Promise<{ testId: string; attemptsRecorded: number }> {
+      storage.create<PracticeTest>(STORAGE_KEYS.TESTS, test);
+      const allAttempts = storage.getAll<PracticeAttempt>(STORAGE_KEYS.ATTEMPTS);
+      storage.setAll(STORAGE_KEYS.ATTEMPTS, [...attempts, ...allAttempts]);
+
+      const now = new Date().toISOString();
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const nextReviewDate = tomorrow.toISOString().split('T')[0];
+
+      const existingMistakes = storage.getAll<Mistake>(STORAGE_KEYS.MISTAKES);
+      const existingRevisions = storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
+
+      for (const att of attempts) {
+        if (!att.isCorrect || att.markedStatus === 'uncertain') {
+          const mistakeId = crypto.randomUUID();
+          existingMistakes.unshift({
+            id: mistakeId,
+            questionId: att.questionId,
+            attemptId: att.id,
+            errorType: att.markedStatus === 'uncertain' && att.isCorrect ? 'guessed_answer' : 'concept_gap',
+            notes: null,
+            revisionStatus: 'pending',
+            nextReviewDate,
+            reviewCount: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+
+          existingRevisions.unshift({
+            id: crypto.randomUUID(),
+            sourceType: 'mistake',
+            sourceId: mistakeId,
+            topic: null,
+            subject: null,
+            nextReview: nextReviewDate,
+            intervalDays: 1,
+            easeFactor: 2.5,
+            status: 'pending',
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+
+      storage.setAll(STORAGE_KEYS.MISTAKES, existingMistakes);
+      storage.setAll(STORAGE_KEYS.REVISION, existingRevisions);
+
+      await requestApi('/api/practice/tests/submit', {
+        method: 'POST',
+        body: JSON.stringify({ test, attempts }),
+      });
+
+      return { testId: test.id, attemptsRecorded: attempts.length };
+    },
+  },
+
+  bookmarks: {
+    async list(): Promise<Bookmark[]> {
+      return storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS);
+    },
+
+    async toggle(targetType: BookmarkTargetType, targetId: string): Promise<boolean> {
+      const all = storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS);
+      const existingIdx = all.findIndex((b) => b.targetId === targetId);
+
+      if (existingIdx !== -1) {
+        all.splice(existingIdx, 1);
+        storage.setAll(STORAGE_KEYS.BOOKMARKS, all);
+        return false;
+      } else {
+        all.unshift({
+          id: crypto.randomUUID(),
+          targetType,
+          targetId,
+          createdAt: new Date().toISOString(),
+        });
+        storage.setAll(STORAGE_KEYS.BOOKMARKS, all);
+        return true;
+      }
+    },
+
+    async isBookmarked(targetId: string): Promise<boolean> {
+      const all = storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS);
+      return all.some((b) => b.targetId === targetId);
     },
   },
 
