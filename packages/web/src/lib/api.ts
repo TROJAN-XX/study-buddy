@@ -185,7 +185,8 @@ export const apiClient = {
 
       if (count > 0) {
         await storage.setAll(STORAGE_KEYS.GOALS, updated);
-        await requestApi('/api/v1/goals/carry-forward', { method: 'POST' });
+        await storage.enqueue({ op: 'carry_forward_goals' });
+        scheduleSync();
       }
 
       return count;
@@ -542,7 +543,7 @@ export const apiClient = {
           });
 
           existingRevisions.unshift({
-            id: crypto.randomUUID(),
+            id: generateId(),
             sourceType: 'mistake',
             sourceId: mistakeId,
             topic: null,

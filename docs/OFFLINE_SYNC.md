@@ -40,27 +40,49 @@ type SyncMutation =
   | { op: 'create'; store: string; data: Record<string, unknown> }
   | { op: 'update'; store: string; id: string; data: Record<string, unknown> }
   | { op: 'delete'; store: string; id: string }
-  | { op: 'submit_test'; test: Record<string, unknown>; attempts: Record<string, unknown>[] };
+  | { op: 'submit_test'; test: Record<string, unknown>; attempts: Record<string, unknown>[] }
+  | { op: 'import_questions'; questions: Record<string, unknown>[]; strategy: 'skip' | 'overwrite' }
+  | { op: 'review_revision'; id: string; grade: 'easy' | 'difficult' | 'forgot' }
+  | { op: 'reschedule_revisions'; mode: 'spread_3_days' | 'defer_tomorrow' | 'reset' }
+  | { op: 'restore_backup'; data: Record<string, unknown> }
+  | { op: 'delete_bookmark'; targetType: string; targetId: string }
+  | { op: 'carry_forward_goals' };
 ```
 
-`submit_test` exists because a practice test and its attempts must reach
-`POST /api/v1/practice/tests/submit` together — that endpoint also derives mistake and revision
-rows server-side. Tests, attempts and question *creates* are therefore excluded from the generic
-queue (`NO_GENERIC_CREATE`); question imports go through `/questions/import` directly.
+Dedicated operations exist because the generic CRUD shape cannot express them:
+
+- `submit_test` — a practice test and its attempts must reach
+  `POST /api/v1/practice/tests/submit` together; that endpoint also derives mistake and revision
+  rows server-side. Tests, attempts and question *creates* are therefore excluded from the generic
+  queue (`NO_GENERIC_CREATE`).
+- `import_questions` — a validated pack is imported through `/questions/import`, so an offline
+  import still reaches D1 later (idempotent via `INSERT OR IGNORE`).
+- `review_revision` / `reschedule_revisions` — revisions are not created through generic CRUD.
+- `restore_backup` — a local backup restore is replayed to `/backup/import`.
+- `delete_bookmark` — deletes by `(targetType, targetId)` so a client id that differs from the
+  server row still removes the right bookmark.
+- `carry_forward_goals` — replays the overdue-goal rollover after the corresponding goal writes.
 
 ### Endpoint map
 
-| Store | Endpoint |
+| Mutation | Endpoint |
 |---|---|
-| `sb_sessions` | `/api/v1/sessions` |
-| `sb_goals` | `/api/v1/goals` |
-| `sb_exams` | `/api/v1/exams` (update only) |
-| `sb_questions` | `/api/v1/questions` (delete) |
-| `sb_mistakes` | `/api/v1/mistakes` |
-| `sb_notes` | `/api/v1/notes` |
-| `sb_bookmarks` | `/api/v1/bookmarks` |
+| `create/update/delete` on `sb_sessions` | `/api/v1/sessions` |
+| `create/update/delete` on `sb_goals` | `/api/v1/goals` |
+| `update` on `sb_exams` | `/api/v1/exams/:id` |
+| `delete` on `sb_questions` | `/api/v1/questions/:id` |
+| `create/update/delete` on `sb_mistakes` | `/api/v1/mistakes` |
+| `create/update/delete` on `sb_notes` | `/api/v1/notes` |
+| `create` on `sb_bookmarks` | `/api/v1/bookmarks` |
+| `delete_bookmark` | `/api/v1/bookmarks/target/:targetType/:targetId` |
+| `submit_test` | `/api/v1/practice/tests/submit` |
+| `import_questions` | `/api/v1/questions/import?strategy=…` |
+| `review_revision` | `/api/v1/revisions/:id/review` |
+| `reschedule_revisions` | `/api/v1/revisions/reschedule` |
+| `restore_backup` | `/api/v1/backup/import` |
+| `carry_forward_goals` | `/api/v1/goals/carry-forward` |
 | `sb_tests`, `sb_attempts` | submitted via `submit_test` |
-| `sb_revision` | no generic endpoint (review/reschedule routes) |
+| `sb_revision` CRUD | no generic endpoint (review/reschedule routes) |
 
 Unmapped mutations are dropped from the queue after being counted as `skipped` — they are already
 persisted locally and have no server counterpart.

@@ -14,7 +14,9 @@ automatic localStorage → IndexedDB migration runs once on first load.
 
 - **Offline mutation queue** (`packages/web/src/lib/sync.ts`): every local write is queued in
   IndexedDB (`sb_sync_queue`) and flushed on startup, on `online`, every 30 s, and shortly after
-  each mutation. Entries are only removed after the Worker acknowledges them.
+  each mutation. Entries are only removed after the Worker acknowledges them. Dedicated mutations
+  cover practice submission, question imports, revision reviews/reschedules, backup restores,
+  goal carry-forward and bookmark deletion.
 - **Sync status UI** (`components/NetworkStatus.tsx`): offline banner and pending-change counter.
 - **Shared HTTP layer** (`lib/http.ts`): single source for `VITE_API_URL` / `VITE_API_TOKEN`,
   Bearer auth, and real success/failure results (previously every non-2xx was silently swallowed).

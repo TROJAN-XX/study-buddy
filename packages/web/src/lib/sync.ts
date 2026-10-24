@@ -98,6 +98,14 @@ async function processMutation(entry: SyncQueueEntry): Promise<boolean> {
     return true;
   }
 
+  if (entry.op === 'carry_forward_goals') {
+    const result = await apiRequest<unknown>('/api/v1/goals/carry-forward', {
+      method: 'POST',
+    });
+    if (!result.ok) throw new Error(result.error);
+    return true;
+  }
+
   const endpoint = STORE_ENDPOINTS[entry.store];
   if (!endpoint) {
     console.debug(`[sync] No REST endpoint for "${entry.store}" (${entry.op}); skipping.`);

@@ -310,6 +310,9 @@ export type SyncMutation =
       op: 'delete_bookmark';
       targetType: string;
       targetId: string;
+    }
+  | {
+      op: 'carry_forward_goals';
     };
 
 export type SyncQueueEntry = SyncMutation & {
