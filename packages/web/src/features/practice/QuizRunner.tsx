@@ -3,6 +3,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
+import { Markdown } from '../../components/Markdown';
 import type { Question, PracticeTest, PracticeAttempt } from '@study-buddy/shared';
 import type { QuizConfig } from './QuizConfigModal';
 import {
@@ -347,8 +348,8 @@ export const QuizRunner: React.FC<QuizRunnerProps> = ({
         </div>
 
         {/* Prompt */}
-        <div className="text-base sm:text-lg font-medium text-text leading-relaxed whitespace-pre-line">
-          {currentQ.questionText}
+        <div className="text-base sm:text-lg font-medium text-text leading-relaxed">
+          <Markdown content={currentQ.questionText} variant="inline" />
         </div>
 
         {/* Options Selection */}
@@ -386,7 +387,9 @@ export const QuizRunner: React.FC<QuizRunnerProps> = ({
                 >
                   {opt.id}
                 </span>
-                <span className="flex-1 leading-normal pt-0.5">{opt.text}</span>
+                <span className="flex-1 leading-normal pt-0.5">
+                  <Markdown content={opt.text} variant="inline" />
+                </span>
                 {showSolution && isCorrectAnswer && (
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                 )}

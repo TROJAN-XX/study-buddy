@@ -116,6 +116,7 @@ questions.post('/import', async (c) => {
     let updated = 0;
 
     const statements = [];
+    const strategies: Array<'skip' | 'overwrite'> = [];
 
     for (const q of validation.questions) {
       if (strategy === 'overwrite') {
@@ -149,7 +150,7 @@ questions.post('/import', async (c) => {
             q.updatedAt
           )
         );
-        updated++;
+        strategies.push('overwrite');
       } else {
         // Skip existing
         statements.push(
@@ -182,14 +183,31 @@ questions.post('/import', async (c) => {
             q.updatedAt
           )
         );
-        inserted++;
+        strategies.push('skip');
       }
     }
 
-    // Execute in batches to stay within D1 limit
+    // Execute in batches to stay within the D1 statement limit, then derive
+    // accurate counters from `meta.changes` (INSERT OR IGNORE reports 0 for
+    // rows that already existed).
     const batchSize = 50;
     for (let i = 0; i < statements.length; i += batchSize) {
-      await c.env.DB.batch(statements.slice(i, i + batchSize));
+      const chunk = statements.slice(i, i + batchSize);
+      const results = await c.env.DB.batch(chunk);
+
+      results.forEach((result, index) => {
+        const changed = result.meta?.changes ?? 0;
+        const mode = strategies[i + index];
+
+        if (mode === 'overwrite') {
+          if (changed > 0) updated += 1;
+          else skipped += 1;
+        } else if (changed > 0) {
+          inserted += 1;
+        } else {
+          skipped += 1;
+        }
+      });
     }
 
     return c.json<ApiResponse<{
@@ -200,7 +218,7 @@ questions.post('/import', async (c) => {
     }>>({
       success: true,
       data: {
-        totalImported: validation.questions.length,
+        totalImported: inserted + updated,
         skipped,
         updated,
         validationErrors: validation.errors,

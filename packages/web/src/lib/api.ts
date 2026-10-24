@@ -1,5 +1,7 @@
 import { storage, STORAGE_KEYS } from './storage';
-import { getToday } from './utils';
+import { getToday, generateId } from './utils';
+import { apiRequest } from './http';
+import { scheduleSync } from './sync';
 import type {
   DashboardData,
   StudySession,
@@ -19,39 +21,13 @@ import type {
 } from '@study-buddy/shared';
 import { validateQuestionPack } from '@study-buddy/shared';
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
-const API_TOKEN = import.meta.env.VITE_API_TOKEN || '';
-
 /**
- * Low-level HTTP helper that contacts Cloudflare Worker API when configured,
- * returning null on any network failure or non-200 response to trigger offline fallback.
+ * Read-through helper: returns remote data when the Worker is reachable,
+ * otherwise `null` so the caller can fall back to local storage.
  */
 async function requestApi<T>(path: string, options: RequestInit = {}): Promise<T | null> {
-  if (!API_BASE_URL) return null;
-
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    };
-
-    if (API_TOKEN) {
-      headers['Authorization'] = `Bearer ${API_TOKEN}`;
-    }
-
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers,
-    });
-
-    if (!response.ok) return null;
-    const json = (await response.json()) as ApiResponse<T>;
-    return json && json.success && json.data !== undefined ? json.data : null;
-  } catch (error) {
-    // Graceful offline fallback on any fetch or network failure
-    console.debug(`[apiClient] Offline or unreachable API for ${path}, using local storage fallback.`, error);
-    return null;
-  }
+  const result = await apiRequest<T>(path, options);
+  return result.ok ? result.data : null;
 }
 
 export interface MistakeDetail extends Mistake {
@@ -62,15 +38,15 @@ export const apiClient = {
   dashboard: {
     async get(): Promise<DashboardData> {
       // 1. Try remote Worker API if configured
-      const remote = await requestApi<DashboardData>('/api/dashboard');
+      const remote = await requestApi<DashboardData>('/api/v1/dashboard');
       if (remote) return remote;
 
-      // 2. Fallback to LocalStorage data calculations
+      // 2. Fallback to IndexedDB/LocalStorage data calculations
       const today = getToday();
-      const allGoals = storage.getAll<DailyGoal>(STORAGE_KEYS.GOALS);
-      const allSessions = storage.getAll<StudySession>(STORAGE_KEYS.SESSIONS);
-      const allRevisions = storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
-      const allTests = storage.getAll<PracticeTest>(STORAGE_KEYS.TESTS);
+      const allGoals = await storage.getAll<DailyGoal>(STORAGE_KEYS.GOALS);
+      const allSessions = await storage.getAll<StudySession>(STORAGE_KEYS.SESSIONS);
+      const allRevisions = await storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
+      const allTests = await storage.getAll<PracticeTest>(STORAGE_KEYS.TESTS);
 
       const todayGoals = allGoals.filter((g) => g.date === today);
       const todaySessions = allSessions.filter((s) => s.date === today);
@@ -129,42 +105,32 @@ export const apiClient = {
   sessions: {
     async list(date?: string): Promise<StudySession[]> {
       const query = date ? `?date=${encodeURIComponent(date)}` : '';
-      const remote = await requestApi<{ data: StudySession[] } | StudySession[]>(`/api/sessions${query}`);
+      const remote = await requestApi<{ data: StudySession[] } | StudySession[]>(`/api/v1/sessions${query}`);
       if (remote) {
         return Array.isArray(remote) ? remote : (remote as any).data || [];
       }
 
-      const sessions = storage.getAll<StudySession>(STORAGE_KEYS.SESSIONS);
+      const sessions = await storage.getAll<StudySession>(STORAGE_KEYS.SESSIONS);
       return date ? sessions.filter((s) => s.date === date) : sessions;
     },
 
     async create(
       data: Omit<StudySession, 'id' | 'createdAt' | 'updatedAt'>
     ): Promise<StudySession> {
-      const local = storage.create<StudySession>(STORAGE_KEYS.SESSIONS, data);
-      await requestApi<StudySession>('/api/sessions', {
-        method: 'POST',
-        body: JSON.stringify(local),
-      });
+      const local = await storage.create<StudySession>(STORAGE_KEYS.SESSIONS, data);
+      scheduleSync();
       return local;
     },
 
     async update(id: string, data: Partial<StudySession>): Promise<StudySession | null> {
-      const local = storage.update<StudySession>(STORAGE_KEYS.SESSIONS, id, data);
-      if (local) {
-        await requestApi<StudySession>(`/api/sessions/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        });
-      }
+      const local = await storage.update<StudySession>(STORAGE_KEYS.SESSIONS, id, data);
+      if (local) scheduleSync();
       return local;
     },
 
     async delete(id: string): Promise<boolean> {
-      const removed = storage.remove(STORAGE_KEYS.SESSIONS, id);
-      if (removed) {
-        await requestApi(`/api/sessions/${id}`, { method: 'DELETE' });
-      }
+      const removed = await storage.remove(STORAGE_KEYS.SESSIONS, id);
+      if (removed) scheduleSync();
       return removed;
     },
   },
@@ -172,46 +138,36 @@ export const apiClient = {
   goals: {
     async list(date?: string): Promise<DailyGoal[]> {
       const query = date ? `?date=${encodeURIComponent(date)}` : '';
-      const remote = await requestApi<DailyGoal[]>(`/api/goals${query}`);
+      const remote = await requestApi<DailyGoal[]>(`/api/v1/goals${query}`);
       if (remote && Array.isArray(remote)) return remote;
 
-      const goals = storage.getAll<DailyGoal>(STORAGE_KEYS.GOALS);
+      const goals = await storage.getAll<DailyGoal>(STORAGE_KEYS.GOALS);
       return date ? goals.filter((g) => g.date === date) : goals;
     },
 
     async create(
       data: Omit<DailyGoal, 'id' | 'createdAt' | 'updatedAt'>
     ): Promise<DailyGoal> {
-      const local = storage.create<DailyGoal>(STORAGE_KEYS.GOALS, data);
-      await requestApi<DailyGoal>('/api/goals', {
-        method: 'POST',
-        body: JSON.stringify(local),
-      });
+      const local = await storage.create<DailyGoal>(STORAGE_KEYS.GOALS, data);
+      scheduleSync();
       return local;
     },
 
     async update(id: string, data: Partial<DailyGoal>): Promise<DailyGoal | null> {
-      const local = storage.update<DailyGoal>(STORAGE_KEYS.GOALS, id, data);
-      if (local) {
-        await requestApi<DailyGoal>(`/api/goals/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        });
-      }
+      const local = await storage.update<DailyGoal>(STORAGE_KEYS.GOALS, id, data);
+      if (local) scheduleSync();
       return local;
     },
 
     async delete(id: string): Promise<boolean> {
-      const removed = storage.remove(STORAGE_KEYS.GOALS, id);
-      if (removed) {
-        await requestApi(`/api/goals/${id}`, { method: 'DELETE' });
-      }
+      const removed = await storage.remove(STORAGE_KEYS.GOALS, id);
+      if (removed) scheduleSync();
       return removed;
     },
 
     async carryForward(): Promise<number> {
       const today = getToday();
-      const allGoals = storage.getAll<DailyGoal>(STORAGE_KEYS.GOALS);
+      const allGoals = await storage.getAll<DailyGoal>(STORAGE_KEYS.GOALS);
       let count = 0;
 
       const updated = allGoals.map((g) => {
@@ -228,8 +184,8 @@ export const apiClient = {
       });
 
       if (count > 0) {
-        storage.setAll(STORAGE_KEYS.GOALS, updated);
-        await requestApi('/api/goals/carry-forward', { method: 'POST' });
+        await storage.setAll(STORAGE_KEYS.GOALS, updated);
+        await requestApi('/api/v1/goals/carry-forward', { method: 'POST' });
       }
 
       return count;
@@ -238,19 +194,14 @@ export const apiClient = {
 
   exams: {
     async list(): Promise<Exam[]> {
-      const remote = await requestApi<Exam[]>('/api/exams');
+      const remote = await requestApi<Exam[]>('/api/v1/exams');
       if (remote && Array.isArray(remote)) return remote;
-      return storage.getAll<Exam>(STORAGE_KEYS.EXAMS);
+      return await storage.getAll<Exam>(STORAGE_KEYS.EXAMS);
     },
 
     async update(id: string, data: Partial<Exam>): Promise<Exam | null> {
-      const local = storage.update<Exam>(STORAGE_KEYS.EXAMS, id, data);
-      if (local) {
-        await requestApi<Exam>(`/api/exams/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        });
-      }
+      const local = await storage.update<Exam>(STORAGE_KEYS.EXAMS, id, data);
+      if (local) scheduleSync();
       return local;
     },
   },
@@ -262,10 +213,10 @@ export const apiClient = {
       if (filters?.dueOnly) params.set('dueOnly', 'true');
       const queryStr = params.toString() ? `?${params.toString()}` : '';
 
-      const remote = await requestApi<RevisionItem[]>(`/api/revisions${queryStr}`);
+      const remote = await requestApi<RevisionItem[]>(`/api/v1/revisions${queryStr}`);
       if (remote && Array.isArray(remote)) return remote;
 
-      const items = storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
+      const items = await storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
       const today = getToday();
       return items.filter((r) => {
         if (filters?.status && r.status !== filters.status) return false;
@@ -281,7 +232,7 @@ export const apiClient = {
       id: string,
       grade: 'easy' | 'difficult' | 'forgot'
     ): Promise<RevisionItem | null> {
-      const item = storage.getById<RevisionItem>(STORAGE_KEYS.REVISION, id);
+      const item = await storage.getById<RevisionItem>(STORAGE_KEYS.REVISION, id);
       if (!item) return null;
 
       let interval = item.intervalDays;
@@ -306,7 +257,7 @@ export const apiClient = {
       nextDate.setDate(nextDate.getDate() + interval);
       const nextReview = nextDate.toISOString().split('T')[0];
 
-      const updated = storage.update<RevisionItem>(STORAGE_KEYS.REVISION, id, {
+      const updated = await storage.update<RevisionItem>(STORAGE_KEYS.REVISION, id, {
         intervalDays: interval,
         easeFactor: ease,
         status,
@@ -314,9 +265,9 @@ export const apiClient = {
       });
 
       if (item.sourceType === 'mistake') {
-        const mistake = storage.getById<Mistake>(STORAGE_KEYS.MISTAKES, item.sourceId);
+        const mistake = await storage.getById<Mistake>(STORAGE_KEYS.MISTAKES, item.sourceId);
         if (mistake) {
-          storage.update<Mistake>(STORAGE_KEYS.MISTAKES, item.sourceId, {
+          await storage.update<Mistake>(STORAGE_KEYS.MISTAKES, item.sourceId, {
             revisionStatus: status,
             nextReviewDate: nextReview,
             reviewCount: mistake.reviewCount + 1,
@@ -324,17 +275,15 @@ export const apiClient = {
         }
       }
 
-      await requestApi<RevisionItem>(`/api/revisions/${id}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ grade }),
-      });
+      await storage.enqueue({ op: 'review_revision', id, grade });
+      scheduleSync();
 
       return updated;
     },
 
     async reschedule(mode: 'spread_3_days' | 'defer_tomorrow' | 'reset'): Promise<number> {
       const today = getToday();
-      const all = storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
+      const all = await storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
       const overdue = all.filter((r) => r.nextReview < today && r.status === 'pending');
 
       if (overdue.length === 0) return 0;
@@ -361,12 +310,10 @@ export const apiClient = {
         return r;
       });
 
-      storage.setAll(STORAGE_KEYS.REVISION, updatedAll);
+      await storage.setAll(STORAGE_KEYS.REVISION, updatedAll);
 
-      await requestApi('/api/revisions/reschedule', {
-        method: 'POST',
-        body: JSON.stringify({ mode }),
-      });
+      await storage.enqueue({ op: 'reschedule_revisions', mode });
+      scheduleSync();
 
       return overdue.length;
     },
@@ -374,11 +321,11 @@ export const apiClient = {
     async create(
       data: Omit<RevisionItem, 'id' | 'createdAt' | 'updatedAt'>
     ): Promise<RevisionItem> {
-      return storage.create<RevisionItem>(STORAGE_KEYS.REVISION, data);
+      return await storage.create<RevisionItem>(STORAGE_KEYS.REVISION, data);
     },
 
     async update(id: string, data: Partial<RevisionItem>): Promise<RevisionItem | null> {
-      return storage.update<RevisionItem>(STORAGE_KEYS.REVISION, id, data);
+      return await storage.update<RevisionItem>(STORAGE_KEYS.REVISION, id, data);
     },
   },
 
@@ -396,11 +343,11 @@ export const apiClient = {
       if (filters?.topic) params.set('topic', filters.topic);
       const queryStr = params.toString() ? `?${params.toString()}` : '';
 
-      const remote = await requestApi<MistakeDetail[]>(`/api/mistakes${queryStr}`);
+      const remote = await requestApi<MistakeDetail[]>(`/api/v1/mistakes${queryStr}`);
       if (remote && Array.isArray(remote)) return remote;
 
-      let allMistakes = storage.getAll<Mistake>(STORAGE_KEYS.MISTAKES);
-      const allQuestions = storage.getAll<Question>(STORAGE_KEYS.QUESTIONS);
+      let allMistakes = await storage.getAll<Mistake>(STORAGE_KEYS.MISTAKES);
+      const allQuestions = await storage.getAll<Question>(STORAGE_KEYS.QUESTIONS);
       const qMap = new Map(allQuestions.map((q) => [q.id, q]));
 
       if (filters?.errorType) {
@@ -423,34 +370,28 @@ export const apiClient = {
     },
 
     async get(id: string): Promise<MistakeDetail | null> {
-      const remote = await requestApi<MistakeDetail>(`/api/mistakes/${id}`);
+      const remote = await requestApi<MistakeDetail>(`/api/v1/mistakes/${id}`);
       if (remote) return remote;
 
-      const m = storage.getById<Mistake>(STORAGE_KEYS.MISTAKES, id);
+      const m = await storage.getById<Mistake>(STORAGE_KEYS.MISTAKES, id);
       if (!m) return null;
-      const q = storage.getById<Question>(STORAGE_KEYS.QUESTIONS, m.questionId);
+      const q = await storage.getById<Question>(STORAGE_KEYS.QUESTIONS, m.questionId);
       return { ...m, question: q };
     },
 
     async update(id: string, data: Partial<Mistake>): Promise<Mistake | null> {
-      const local = storage.update<Mistake>(STORAGE_KEYS.MISTAKES, id, data);
-      if (local) {
-        await requestApi<Mistake>(`/api/mistakes/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        });
-      }
+      const local = await storage.update<Mistake>(STORAGE_KEYS.MISTAKES, id, data);
+      if (local) scheduleSync();
       return local;
     },
 
     async delete(id: string): Promise<boolean> {
-      const removed = storage.remove(STORAGE_KEYS.MISTAKES, id);
+      const removed = await storage.remove(STORAGE_KEYS.MISTAKES, id);
       if (removed) {
-        const revs = storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
+        const revs = await storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
         const filtered = revs.filter((r) => !(r.sourceType === 'mistake' && r.sourceId === id));
-        storage.setAll(STORAGE_KEYS.REVISION, filtered);
-
-        await requestApi(`/api/mistakes/${id}`, { method: 'DELETE' });
+        await storage.setAll(STORAGE_KEYS.REVISION, filtered);
+        scheduleSync();
       }
       return removed;
     },
@@ -473,12 +414,12 @@ export const apiClient = {
       params.set('pageSize', '100');
 
       const queryStr = params.toString() ? `?${params.toString()}` : '';
-      const remote = await requestApi<{ data: Question[] } | Question[]>(`/api/questions${queryStr}`);
+      const remote = await requestApi<{ data: Question[] } | Question[]>(`/api/v1/questions${queryStr}`);
       if (remote) {
         return Array.isArray(remote) ? remote : (remote as any).data || [];
       }
 
-      let questions = storage.getAll<Question>(STORAGE_KEYS.QUESTIONS);
+      let questions = await storage.getAll<Question>(STORAGE_KEYS.QUESTIONS);
       if (filters?.exam) {
         questions = questions.filter((q) => q.exam === filters.exam);
       }
@@ -504,9 +445,9 @@ export const apiClient = {
     },
 
     async get(id: string): Promise<Question | null> {
-      const remote = await requestApi<Question>(`/api/questions/${id}`);
+      const remote = await requestApi<Question>(`/api/v1/questions/${id}`);
       if (remote) return remote;
-      return storage.getById<Question>(STORAGE_KEYS.QUESTIONS, id);
+      return await storage.getById<Question>(STORAGE_KEYS.QUESTIONS, id);
     },
 
     async importPack(
@@ -516,7 +457,7 @@ export const apiClient = {
       const validation = validateQuestionPack(data);
 
       if (validation.questions.length > 0) {
-        const existing = storage.getAll<Question>(STORAGE_KEYS.QUESTIONS);
+        const existing = await storage.getAll<Question>(STORAGE_KEYS.QUESTIONS);
         const existingMap = new Map(existing.map((q) => [q.id, q]));
 
         for (const q of validation.questions) {
@@ -525,41 +466,42 @@ export const apiClient = {
           }
         }
 
-        storage.setAll(STORAGE_KEYS.QUESTIONS, Array.from(existingMap.values()));
+        await storage.setAll(STORAGE_KEYS.QUESTIONS, Array.from(existingMap.values()));
 
-        // Also sync to remote worker if available
-        await requestApi(`/api/questions/import?strategy=${strategy}`, {
-          method: 'POST',
-          body: JSON.stringify(validation.questions),
+        // Queue the import so it survives being offline at import time.
+        await storage.enqueue({
+          op: 'import_questions',
+          questions: validation.questions as unknown as Record<string, unknown>[],
+          strategy,
         });
+        scheduleSync();
       }
 
       return validation;
     },
 
     async delete(id: string): Promise<boolean> {
-      const removed = storage.remove(STORAGE_KEYS.QUESTIONS, id);
-      if (removed) {
-        await requestApi(`/api/questions/${id}`, { method: 'DELETE' });
-      }
+      const removed = await storage.remove(STORAGE_KEYS.QUESTIONS, id);
+      if (removed) scheduleSync();
       return removed;
     },
   },
 
   practice: {
     async listTests(limit: number = 20): Promise<PracticeTest[]> {
-      const remote = await requestApi<PracticeTest[]>(`/api/practice/tests?limit=${limit}`);
+      const remote = await requestApi<PracticeTest[]>(`/api/v1/practice/tests?limit=${limit}`);
       if (remote && Array.isArray(remote)) return remote;
-      return storage.getAll<PracticeTest>(STORAGE_KEYS.TESTS).slice(0, limit);
+      const allTests = await storage.getAll<PracticeTest>(STORAGE_KEYS.TESTS);
+      return allTests.slice(0, limit);
     },
 
     async getTest(id: string): Promise<{ test: PracticeTest; attempts: PracticeAttempt[] } | null> {
-      const remote = await requestApi<{ test: PracticeTest; attempts: PracticeAttempt[] }>(`/api/practice/tests/${id}`);
+      const remote = await requestApi<{ test: PracticeTest; attempts: PracticeAttempt[] }>(`/api/v1/practice/tests/${id}`);
       if (remote) return remote;
 
-      const test = storage.getById<PracticeTest>(STORAGE_KEYS.TESTS, id);
+      const test = await storage.getById<PracticeTest>(STORAGE_KEYS.TESTS, id);
       if (!test) return null;
-      const allAttempts = storage.getAll<PracticeAttempt>(STORAGE_KEYS.ATTEMPTS);
+      const allAttempts = await storage.getAll<PracticeAttempt>(STORAGE_KEYS.ATTEMPTS);
       const attempts = allAttempts.filter((a) => a.testId === id);
       return { test, attempts };
     },
@@ -568,21 +510,24 @@ export const apiClient = {
       test: PracticeTest,
       attempts: PracticeAttempt[]
     ): Promise<{ testId: string; attemptsRecorded: number }> {
-      storage.create<PracticeTest>(STORAGE_KEYS.TESTS, test);
-      const allAttempts = storage.getAll<PracticeAttempt>(STORAGE_KEYS.ATTEMPTS);
-      storage.setAll(STORAGE_KEYS.ATTEMPTS, [...attempts, ...allAttempts]);
+      // Store locally first; a single queued mutation pushes test + attempts
+      // atomically to /practice/tests/submit (the only endpoint that accepts
+      // both resources, and which also derives mistake/revision rows).
+      await storage.create<PracticeTest>(STORAGE_KEYS.TESTS, test);
+      const allAttempts = await storage.getAll<PracticeAttempt>(STORAGE_KEYS.ATTEMPTS);
+      await storage.setAll(STORAGE_KEYS.ATTEMPTS, [...attempts, ...allAttempts]);
 
       const now = new Date().toISOString();
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const nextReviewDate = tomorrow.toISOString().split('T')[0];
 
-      const existingMistakes = storage.getAll<Mistake>(STORAGE_KEYS.MISTAKES);
-      const existingRevisions = storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
+      const existingMistakes = await storage.getAll<Mistake>(STORAGE_KEYS.MISTAKES);
+      const existingRevisions = await storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION);
 
       for (const att of attempts) {
         if (!att.isCorrect || att.markedStatus === 'uncertain') {
-          const mistakeId = crypto.randomUUID();
+          const mistakeId = generateId();
           existingMistakes.unshift({
             id: mistakeId,
             questionId: att.questionId,
@@ -612,13 +557,15 @@ export const apiClient = {
         }
       }
 
-      storage.setAll(STORAGE_KEYS.MISTAKES, existingMistakes);
-      storage.setAll(STORAGE_KEYS.REVISION, existingRevisions);
+      await storage.setAll(STORAGE_KEYS.MISTAKES, existingMistakes);
+      await storage.setAll(STORAGE_KEYS.REVISION, existingRevisions);
 
-      await requestApi('/api/practice/tests/submit', {
-        method: 'POST',
-        body: JSON.stringify({ test, attempts }),
+      await storage.enqueue({
+        op: 'submit_test',
+        test: test as unknown as Record<string, unknown>,
+        attempts: attempts as unknown as Record<string, unknown>[],
       });
+      scheduleSync();
 
       return { testId: test.id, attemptsRecorded: attempts.length };
     },
@@ -626,32 +573,45 @@ export const apiClient = {
 
   bookmarks: {
     async list(): Promise<Bookmark[]> {
-      return storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS);
+      return await storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS);
     },
 
     async toggle(targetType: BookmarkTargetType, targetId: string): Promise<boolean> {
-      const all = storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS);
-      const existingIdx = all.findIndex((b) => b.targetId === targetId);
+      const all = await storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS);
+      const existingIdx = all.findIndex((b) => b.targetId === targetId && b.targetType === targetType);
 
       if (existingIdx !== -1) {
-        all.splice(existingIdx, 1);
-        storage.setAll(STORAGE_KEYS.BOOKMARKS, all);
-        return false;
-      } else {
-        all.unshift({
-          id: crypto.randomUUID(),
-          targetType,
-          targetId,
-          createdAt: new Date().toISOString(),
+        const [removed] = all.splice(existingIdx, 1);
+        await storage.setAll(STORAGE_KEYS.BOOKMARKS, all);
+        await storage.enqueue({
+          op: 'delete_bookmark',
+          targetType: removed.targetType,
+          targetId: removed.targetId,
         });
-        storage.setAll(STORAGE_KEYS.BOOKMARKS, all);
-        return true;
+        scheduleSync();
+        return false;
       }
+
+      const bookmark: Bookmark = {
+        id: generateId(),
+        targetType,
+        targetId,
+        createdAt: new Date().toISOString(),
+      };
+      all.unshift(bookmark);
+      await storage.setAll(STORAGE_KEYS.BOOKMARKS, all);
+      await storage.enqueue({
+        op: 'create',
+        store: STORAGE_KEYS.BOOKMARKS,
+        data: bookmark as unknown as Record<string, unknown>,
+      });
+      scheduleSync();
+      return true;
     },
 
-    async isBookmarked(targetId: string): Promise<boolean> {
-      const all = storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS);
-      return all.some((b) => b.targetId === targetId);
+    async isBookmarked(targetId: string, targetType?: BookmarkTargetType): Promise<boolean> {
+      const all = await storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS);
+      return all.some((b) => b.targetId === targetId && (!targetType || b.targetType === targetType));
     },
   },
 
@@ -671,10 +631,10 @@ export const apiClient = {
       if (filters?.isBookmarked) params.set('isBookmarked', 'true');
       const queryStr = params.toString() ? `?${params.toString()}` : '';
 
-      const remote = await requestApi<Note[]>(`/api/notes${queryStr}`);
+      const remote = await requestApi<Note[]>(`/api/v1/notes${queryStr}`);
       if (remote && Array.isArray(remote)) return remote;
 
-      let notes = storage.getAll<Note>(STORAGE_KEYS.NOTES);
+      let notes = await storage.getAll<Note>(STORAGE_KEYS.NOTES);
       if (filters?.subject) {
         notes = notes.filter((n) => n.subject === filters.subject);
       }
@@ -700,58 +660,48 @@ export const apiClient = {
     },
 
     async get(id: string): Promise<Note | null> {
-      const remote = await requestApi<Note>(`/api/notes/${id}`);
+      const remote = await requestApi<Note>(`/api/v1/notes/${id}`);
       if (remote) return remote;
-      return storage.getById<Note>(STORAGE_KEYS.NOTES, id);
+      return await storage.getById<Note>(STORAGE_KEYS.NOTES, id);
     },
 
     async create(data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>): Promise<Note> {
-      const local = storage.create<Note>(STORAGE_KEYS.NOTES, data);
-      await requestApi<Note>('/api/notes', {
-        method: 'POST',
-        body: JSON.stringify(local),
-      });
+      const local = await storage.create<Note>(STORAGE_KEYS.NOTES, data);
+      scheduleSync();
       return local;
     },
 
     async update(id: string, data: Partial<Note>): Promise<Note | null> {
-      const local = storage.update<Note>(STORAGE_KEYS.NOTES, id, data);
-      if (local) {
-        await requestApi<Note>(`/api/notes/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        });
-      }
+      const local = await storage.update<Note>(STORAGE_KEYS.NOTES, id, data);
+      if (local) scheduleSync();
       return local;
     },
 
     async delete(id: string): Promise<boolean> {
-      const removed = storage.remove(STORAGE_KEYS.NOTES, id);
-      if (removed) {
-        await requestApi(`/api/notes/${id}`, { method: 'DELETE' });
-      }
+      const removed = await storage.remove(STORAGE_KEYS.NOTES, id);
+      if (removed) scheduleSync();
       return removed;
     },
   },
 
   backup: {
     async export(): Promise<BackupData> {
-      const remote = await requestApi<BackupData>('/api/backup/export');
+      const remote = await requestApi<BackupData>('/api/v1/backup/export');
       if (remote && remote.version) return remote;
 
       return {
         version: '1.0.0',
         exportedAt: new Date().toISOString(),
-        exams: storage.getAll<Exam>(STORAGE_KEYS.EXAMS),
-        sessions: storage.getAll<StudySession>(STORAGE_KEYS.SESSIONS),
-        goals: storage.getAll<DailyGoal>(STORAGE_KEYS.GOALS),
-        questions: storage.getAll<Question>(STORAGE_KEYS.QUESTIONS),
-        tests: storage.getAll<PracticeTest>(STORAGE_KEYS.TESTS),
-        attempts: storage.getAll<PracticeAttempt>(STORAGE_KEYS.ATTEMPTS),
-        mistakes: storage.getAll<Mistake>(STORAGE_KEYS.MISTAKES),
-        revisionItems: storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION),
-        notes: storage.getAll<Note>(STORAGE_KEYS.NOTES),
-        bookmarks: storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS),
+        exams: await storage.getAll<Exam>(STORAGE_KEYS.EXAMS),
+        sessions: await storage.getAll<StudySession>(STORAGE_KEYS.SESSIONS),
+        goals: await storage.getAll<DailyGoal>(STORAGE_KEYS.GOALS),
+        questions: await storage.getAll<Question>(STORAGE_KEYS.QUESTIONS),
+        tests: await storage.getAll<PracticeTest>(STORAGE_KEYS.TESTS),
+        attempts: await storage.getAll<PracticeAttempt>(STORAGE_KEYS.ATTEMPTS),
+        mistakes: await storage.getAll<Mistake>(STORAGE_KEYS.MISTAKES),
+        revisionItems: await storage.getAll<RevisionItem>(STORAGE_KEYS.REVISION),
+        notes: await storage.getAll<Note>(STORAGE_KEYS.NOTES),
+        bookmarks: await storage.getAll<Bookmark>(STORAGE_KEYS.BOOKMARKS),
       };
     },
 
@@ -763,57 +713,58 @@ export const apiClient = {
       const counts: Record<string, number> = {};
 
       if (Array.isArray(data.exams)) {
-        storage.setAll(STORAGE_KEYS.EXAMS, data.exams);
+        await storage.setAll(STORAGE_KEYS.EXAMS, data.exams);
         counts.exams = data.exams.length;
       }
       if (Array.isArray(data.sessions)) {
-        storage.setAll(STORAGE_KEYS.SESSIONS, data.sessions);
+        await storage.setAll(STORAGE_KEYS.SESSIONS, data.sessions);
         counts.sessions = data.sessions.length;
       }
       if (Array.isArray(data.goals)) {
-        storage.setAll(STORAGE_KEYS.GOALS, data.goals);
+        await storage.setAll(STORAGE_KEYS.GOALS, data.goals);
         counts.goals = data.goals.length;
       }
       if (Array.isArray(data.questions)) {
-        storage.setAll(STORAGE_KEYS.QUESTIONS, data.questions);
+        await storage.setAll(STORAGE_KEYS.QUESTIONS, data.questions);
         counts.questions = data.questions.length;
       }
       if (Array.isArray(data.tests)) {
-        storage.setAll(STORAGE_KEYS.TESTS, data.tests);
+        await storage.setAll(STORAGE_KEYS.TESTS, data.tests);
         counts.tests = data.tests.length;
       }
       if (Array.isArray(data.attempts)) {
-        storage.setAll(STORAGE_KEYS.ATTEMPTS, data.attempts);
+        await storage.setAll(STORAGE_KEYS.ATTEMPTS, data.attempts);
         counts.attempts = data.attempts.length;
       }
       if (Array.isArray(data.mistakes)) {
-        storage.setAll(STORAGE_KEYS.MISTAKES, data.mistakes);
+        await storage.setAll(STORAGE_KEYS.MISTAKES, data.mistakes);
         counts.mistakes = data.mistakes.length;
       }
       if (Array.isArray(data.revisionItems)) {
-        storage.setAll(STORAGE_KEYS.REVISION, data.revisionItems);
+        await storage.setAll(STORAGE_KEYS.REVISION, data.revisionItems);
         counts.revisionItems = data.revisionItems.length;
       }
       if (Array.isArray(data.notes)) {
-        storage.setAll(STORAGE_KEYS.NOTES, data.notes);
+        await storage.setAll(STORAGE_KEYS.NOTES, data.notes);
         counts.notes = data.notes.length;
       }
       if (Array.isArray(data.bookmarks)) {
-        storage.setAll(STORAGE_KEYS.BOOKMARKS, data.bookmarks);
+        await storage.setAll(STORAGE_KEYS.BOOKMARKS, data.bookmarks);
         counts.bookmarks = data.bookmarks.length;
       }
 
-      // Also forward to API if available
-      await requestApi('/api/backup/import', {
-        method: 'POST',
-        body: JSON.stringify(data),
+      // Queue the restore so it reaches D1 even if performed offline.
+      await storage.enqueue({
+        op: 'restore_backup',
+        data: data as unknown as Record<string, unknown>,
       });
+      scheduleSync();
 
       return { success: true, counts };
     },
 
     async clearAll(): Promise<void> {
-      storage.clearAll();
+      await storage.clearAll();
     },
   },
 };

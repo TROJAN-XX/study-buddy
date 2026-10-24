@@ -258,7 +258,9 @@ CREATE INDEX idx_bookmarks_target ON bookmarks(target_type, target_id);
 
 ## 4. API Endpoints & Contract Specification
 
-All `/api/*` endpoints require the header `Authorization: Bearer <API_TOKEN>`. Responses strictly adhere to `ApiResponse<T>`:
+All API endpoints require the header `Authorization: Bearer <API_TOKEN>`. Every route is mounted twice:
+the preferred versioned prefix `/api/v1/*` and the legacy `/api/*` prefix (kept for backward
+compatibility). Responses strictly adhere to `ApiResponse<T>`:
 
 ```typescript
 interface ApiResponse<T> {
@@ -291,6 +293,9 @@ interface ApiResponse<T> {
 | `GET` | `/api/topics` | List topics for subject | `?subjectId=quantitative` | `ApiResponse<Topic[]>` |
 | `GET` | `/api/backup/export` | Full database export | None | `ApiResponse<BackupData>` |
 | `POST` | `/api/backup/import` | Validate & restore database | `BackupData` | `ApiResponse<{ imported: Record<string, number> }>` |
+| `GET` | `/api/bookmarks` | List bookmarks (optional `?targetType=`) | None | `ApiResponse<Bookmark[]>` |
+| `POST` | `/api/bookmarks` | Create a bookmark (idempotent per target) | `{ id?, targetType, targetId }` | `ApiResponse<Bookmark>` |
+| `DELETE` | `/api/bookmarks/:id` | Remove a bookmark | None | `ApiResponse<{ deleted: boolean }>` |
 
 ---
 
@@ -298,18 +303,22 @@ interface ApiResponse<T> {
 
 Because Study Buddy is designed for personal preparation without recurring SaaS expenses:
 - **No Paid Identity Provider**: Services like Auth0, Clerk, or Firebase Auth are excluded.
-- **Bearer Token Guard**: The Hono API layer intercepts every mutation and query with `authMiddleware`:
+- **Bearer Token Guard**: The Hono API layer intercepts every mutation and query with `authMiddleware` (fails **closed** — an unset `API_TOKEN` rejects every request rather than allowing access):
   ```typescript
   export const authMiddleware: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
     if (c.req.method === 'OPTIONS') return next();
-    const expectedToken = c.env.API_TOKEN;
-    if (!expectedToken) return next(); // Permissive local dev fallback
 
     const authHeader = c.req.header('Authorization');
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token || token !== expectedToken) {
-      return c.json({ success: false, error: 'Unauthorized access' }, 401);
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401);
     }
+
+    const token = authHeader.substring(7).trim();
+    const expectedToken = c.env.API_TOKEN;
+    if (!expectedToken || token !== expectedToken) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401);
+    }
+
     await next();
   };
   ```
@@ -319,7 +328,22 @@ Because Study Buddy is designed for personal preparation without recurring SaaS 
 
 ## 6. Offline-First & Synchronization Strategy
 
-Study Buddy utilizes a dual-tier storage strategy:
-1. **Tier 1 (Browser Runtime - Active)**: `storage.ts` provides instant synchronous CRUD across browser sessions using LocalStorage and IndexedDB fallback. When the device is offline, all actions succeed instantly with zero loading spinners or network timeouts.
-2. **Tier 2 (Cloudflare D1 - Edge Synced)**: When connected, `apiClient` performs bidirectional sync with Cloudflare D1.
-3. **Fail-Safe Portability**: The full database can be exported as a raw `.json` file at any second and restored on another machine, ensuring that platform changes or Cloudflare outages never risk user data.
+Study Buddy is **local-first**. IndexedDB is the working store; Cloudflare D1 is the durable,
+eventually-consistent backup.
+
+1. **Tier 1 — Browser runtime (source of truth for rendering)**: `storage.ts` owns a single
+   long-lived IndexedDB connection (`study-buddy`, v3) with one object store per collection and a
+   `sb_sync_queue` store. It seeds exams/questions/notes once, migrates legacy localStorage data on
+   first run, and falls back to localStorage if IndexedDB is unavailable.
+2. **Tier 2 — Offline mutation queue**: every create/update/delete appends a `SyncMutation`.
+   `sync.ts` flushes the queue oldest-first on startup, on the `online` event, every 30 seconds, and
+   shortly after each write. Entries are removed only after the Worker returns
+   `{ success: true }`; the first failure stops the run so ordering is preserved.
+3. **Tier 3 — Cloudflare D1**: `apiClient` reads remote-first and falls back to local storage on any
+   failure. Create endpoints honour client-generated UUIDs so replays are idempotent.
+4. **Fail-safe portability**: the full database can be exported as a raw `.json` file at any second
+   and restored on another machine, ensuring that platform changes or Cloudflare outages never risk
+   user data.
+
+See [`OFFLINE_SYNC.md`](./OFFLINE_SYNC.md) for the mutation contract, endpoint map and conflict
+policy.

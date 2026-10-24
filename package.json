@@ -13,15 +13,22 @@
     "build": "npm run build --workspace=packages/web",
     "build:api": "npm run build --workspace=packages/api",
     "preview": "npm run preview --workspace=packages/web",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run typecheck && npm run test && npm run build"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "allowScripts": {
-    "esbuild@0.21.5": true,
-    "esbuild@0.17.19": true,
     "workerd@1.20250718.0": true,
-    "sharp@0.33.5": true
+    "sharp@0.33.5": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true,
+    "esbuild@0.17.19": true
+  },
+  "devDependencies": {
+    "vitest": "^5.0.5"
   }
 }

@@ -70,6 +70,31 @@ flowchart TB
 | **Database** | Cloudflare D1 (Serverless SQLite) | Direct SQL relational capabilities, transaction safety | 5 GB storage, 5,000,000 row reads/day, 100,000 writes/day |
 | **Auth** | Bearer Secret Header | Private single-user access without requiring paid Auth0/Clerk | ₹0 cost, zero tracking cookies |
 
+### Offline-First Data Flow
+
+All writes land in IndexedDB first and are appended to a durable mutation queue; a background
+worker drains that queue to the Cloudflare Worker when connectivity is available. Reads are
+remote-first with an automatic local fallback, so the app behaves identically with the API
+unreachable or `VITE_API_URL` unset.
+
+```mermaid
+flowchart LR
+    UI["React UI"] --> API["apiClient"]
+    API --> IDB[("IndexedDB<br/>collections + sb_sync_queue")]
+    IDB --> SYNC["sync.ts<br/>flush on start / online / 30s"]
+    SYNC -->|"Bearer auth"| W["Worker API"]
+    W --> D1[("D1")]
+    SYNC -.->|"failure: keep entry, retry"| IDB
+```
+
+- Queued mutations are removed **only after** a successful `{ success: true }` response.
+- Client-generated UUIDs are honoured by the API, making replays idempotent.
+- `sb_tests` + `sb_attempts` are submitted atomically through `/practice/tests/submit`.
+- A status pill shows “Offline · saved on this device” or “Syncing N changes…”.
+
+See [`docs/OFFLINE_SYNC.md`](./docs/OFFLINE_SYNC.md) for the full contract, endpoint map and
+conflict policy.
+
 ---
 
 ## 3. Repository Structure
@@ -102,8 +127,9 @@ study-buddy/
     │       ├── db/
     │       │   ├── mappers.ts     # Snake_case DB to camelCase model mappers
     │       │   └── migrations/
-    │       │       ├── 0001_initial_schema.sql  # 12 core relational tables & indexes
-    │       │       └── 0002_seed_data.sql       # Seed data for exams and taxonomy
+    │       │       ├── 0001_initial_schema.sql      # 12 core relational tables, FKs & checks
+    │       │       ├── 0002_seed_data.sql           # Seed data for exams and taxonomy
+    │       │       └── 0003_integrity_indexes.sql   # Idempotent upgrade for existing databases
     │       ├── validation/
     │       │   └── schemas.ts     # Zod runtime validators
     │       └── routes/
@@ -112,67 +138,57 @@ study-buddy/
     │           ├── goals.ts       # CRUD /api/goals & /carry-forward
     │           ├── exams.ts       # Target exam priority and date management
     │           ├── taxonomy.ts    # Subjects and topics lookup
+    │           ├── questions.ts   # Question pack import & delete
+    │           ├── practice.ts    # Test submission + attempt/mistake derivation
+    │           ├── mistakes.ts    # Mistake book filters & classification
+    │           ├── revisions.ts   # SM-2 review & reschedule endpoints
+    │           ├── notes.ts       # Notebook & current affairs CRUD
+    │           ├── bookmarks.ts   # Bookmark create/list/delete
     │           └── backup.ts      # Full JSON database export and restore
     └── web/                       # React 18 Progressive Web App
         ├── package.json
         ├── tsconfig.json
         ├── vite.config.ts         # Vite build config, path aliases & PWA generator
         ├── tailwind.config.js     # Dark luxury palette & typographic scale
-        ├── index.html             # HTML5 app shell
+        ├── index.html             # HTML5 app shell (system fonts, no external requests)
         ├── public/
-        │   ├── manifest.json      # PWA install specification
-        │   └── favicon.svg        # SVG app icon
+        │   ├── favicon.svg        # SVG app icon
+        │   ├── pwa-192x192.png    # PWA icon (any)
+        │   ├── pwa-512x512.png    # PWA icon (any + maskable)
+        │   ├── apple-touch-icon.png
+        │   ├── _redirects         # Cloudflare Pages SPA fallback
+        │   └── _headers           # CSP, caching and security headers
         └── src/
-            ├── main.tsx           # React DOM root and Service Worker registration
+            ├── main.tsx           # React root, ErrorBoundary, background sync bootstrap
             ├── App.tsx            # Application routing (React Router v6)
-            ├── index.css          # Tailwind base directives & custom scrollbars
+            ├── index.css          # Tailwind directives, markdown & KaTeX styles
             ├── components/
             │   ├── Layout.tsx     # Responsive desktop sidebar / mobile bottom nav
             │   ├── Sidebar.tsx    # Desktop fixed navigation rail
             │   ├── BottomNav.tsx  # Mobile glassmorphic bottom bar
+            │   ├── Markdown.tsx   # Offline Markdown + KaTeX renderer
+            │   ├── NetworkStatus.tsx # Offline / pending-sync pill
+            │   ├── ErrorBoundary.tsx
             │   └── ui/            # Accessible atomic design system
-            │       ├── Card.tsx
-            │       ├── Button.tsx
-            │       ├── Badge.tsx
-            │       ├── Input.tsx
-            │       ├── Select.tsx
-            │       ├── Modal.tsx
-            │       └── EmptyState.tsx
             ├── lib/
-            │   ├── utils.ts       # Date parsing, duration formatters, id generators
-            │   ├── storage.ts     # Offline-first local storage repository
-            │   └── api.ts         # HTTP client with automatic fallback
+            │   ├── utils.ts       # Dates, formatters, ids, Fisher–Yates shuffle
+            │   ├── storage.ts     # IndexedDB repository + sync queue + localStorage fallback
+            │   ├── http.ts        # Base URL, Bearer auth, typed API results
+            │   ├── sync.ts        # Queue processor & background flush triggers
+            │   ├── useOnlineStatus.ts
+            │   └── api.ts         # Local-first API client with remote read-through
             └── features/
                 ├── dashboard/     # Today screen, Daily Plan, Weekly Stats
-                │   ├── Dashboard.tsx
-                │   ├── FocusTimer.tsx    # 25m Pomodoro with circular SVG & audio chime
-                │   └── QuoteDisplay.tsx  # Rotating Tamil wisdom and discipline quotes
                 ├── tracker/       # Daily study log (time, accuracy, reflections)
-                │   └── StudyTracker.tsx
                 ├── goals/         # Today & tomorrow goal setting with carry-forward
-                │   └── GoalsPage.tsx
-                ├── practice/      # Practice & test engine (Practice Mode vs Timed Exam Mode)
-                │   ├── PracticePage.tsx
-                │   ├── QuizConfigModal.tsx   # Configurable exams, topics, count, and timer
-                │   ├── QuizRunner.tsx        # Keyboard navigation, palette, KaTeX math
-                │   └── TestResultSummary.tsx # Sectional breakdown & mistake classifier trigger
-                ├── library/       # Question Bank browser & JSON pack importer
-                │   ├── LibraryPage.tsx       # Multi-faceted search, exam/topic filters
-                │   └── PackImporterModal.tsx # Drag-and-drop JSON pack validator with row errors
-                ├── revision/      # Spaced review queue & Mistake Book
-                │   ├── RevisionPage.tsx
-                │   ├── RevisionQueue.tsx             # SM-2 Flashcard sprint & backlog handling
-                │   ├── MistakeBook.tsx               # Root-cause error analytics & filters
-                │   └── MistakeClassificationModal.tsx # Error categorization & reflection notes
-                ├── progress/      # Consistency visualization & Weak-Area Diagnosis
-                │   ├── ProgressPage.tsx
-                │   └── WeakAreaDiagnosis.tsx # 15-attempt sample safeguard & quadrant diagnosis
-                ├── notes/         # Study Notebook, Formulas & Current Affairs
-                │   ├── NotebookPage.tsx      # Formula repository with one-click copy
-                │   ├── CurrentAffairsFeed.tsx # Chronological dated news compilations
-                │   └── NoteModal.tsx         # Markdown editor with live preview
+                ├── practice/      # Quiz config, runner (KaTeX) and result summary
+                ├── library/       # Question bank browser & JSON pack importer
+                ├── revision/      # Spaced review queue, mistake book, classifier
+                ├── progress/      # Consistency charts & weak-area diagnosis
+                ├── notes/         # Markdown notebook & dated current affairs
+                ├── search/        # Global offline search across all collections
+                ├── NotFoundPage.tsx
                 └── settings/      # JSON export, file restore, and state reset
-                    └── SettingsPage.tsx
 ```
 
 ---
@@ -202,14 +218,20 @@ cd study-buddy
 npm install
 ```
 
-### 2. Run Typecheck & Build
+### 2. Run Typecheck, Tests & Build
 Verify that the shared models, API, and web packages build cleanly:
 ```bash
 # Verify TypeScript compilation across all packages
 npm run typecheck
 
+# Run the Vitest unit suite (validation, schemas, utilities)
+npm test
+
 # Build the production PWA bundle (including Service Worker)
 npm run build
+
+# Or all three in sequence
+npm run verify
 ```
 
 ### 3. Start Development Servers
@@ -225,6 +247,14 @@ npm run dev
 npm run dev:api
 # Running at http://localhost:8787
 ```
+
+To connect the frontend to the Worker locally, create `packages/web/.env.local`:
+```env
+VITE_API_URL=http://localhost:8787
+VITE_API_TOKEN=<the API_TOKEN you set for the Worker>
+```
+
+If `VITE_API_URL` is omitted the app runs in standalone offline mode — every feature still works.
 
 ---
 
@@ -294,22 +324,30 @@ Your app will be live on `https://study-buddy.pages.dev` with free SSL and world
 
 ## 8. Development Roadmap
 
-For the detailed breakdown of remaining modules and architectural tasks, see [`PENDING_WORK.md`](./PENDING_WORK.md).
+For the detailed backlog of remaining polish items, see [`PENDING_WORK.md`](./PENDING_WORK.md).
+Release history lives in [`CHANGELOG.md`](./CHANGELOG.md).
 
 - **Phase 1: Foundation & Daily Study Loop** *(Status: Completed)*
   - PWA shell, dark luxury theme, responsive layout.
   - Complete Today dashboard, daily session tracker, goal management with carry-forward, 25m Pomodoro sprint timer.
-  - Cloudflare D1 schema (12 tables), Hono edge API, and offline-first LocalStorage fallback.
+  - Cloudflare D1 schema (12 tables), Hono edge API, and offline-first IndexedDB fallback.
 - **Phase 2: Question Library & Practice Engine** *(Status: Completed)*
   - Schema-validated JSON question pack importer with row-level error reporting.
   - Multi-faceted question bank browser with instant search, filters, and bookmarking.
   - Interactive test runner with Practice Mode (instant explanations) and Timed Exam Mode.
-- **Phase 3: Mistake Book & Mock Analysis** *(Status: Pending)*
-  - Post-test diagnostic breakdown (score, pace, unanswered items).
-  - Categorization of errors (concept gap, calculation, misread, guess, time pressure).
-- **Phase 4: Spaced Repetition Revision & Weak-Area Diagnosis** *(Status: Pending)*
-  - Modified SM-2 spaced repetition queue (1, 3, 7, 14 days interval).
-  - Topic diagnosis with sample size safeguards (minimum attempt threshold).
-- **Phase 5: Study Notebook, Current Affairs & Polish** *(Status: Pending)*
-  - Markdown concept & formula notebook with bidirectional question linking.
-  - Chronological current affairs tracker (national, state, banking, science).
+- **Phase 3: Mistake Book & Mock Analysis** *(Status: Completed)*
+  - Post-test diagnostic breakdown (score, pace, unanswered items, sectional accuracy).
+  - Error classification (concept gap, calculation, misread, guess, time pressure).
+- **Phase 4: Spaced Repetition Revision & Weak-Area Diagnosis** *(Status: Completed)*
+  - Modified SM-2 queue (1, 3, 7, 14, 30 days) with non-punitive backlog handling.
+  - Topic diagnosis with a 15-attempt sample-size safeguard and persistent dismissals.
+- **Phase 5: Study Notebook, Current Affairs & Polish** *(Status: Completed)*
+  - Markdown notebook with live preview and KaTeX formula rendering.
+  - Dated current affairs feed with source attribution and a pre-filtered recall quiz.
+  - Global offline search across questions, notes, mistakes and sessions.
+  - Offline mutation queue, background sync, and a connectivity/sync status indicator.
+- **Hardening (v1.1.0)** *(Status: Completed)*
+  - IndexedDB lifecycle fix + one-time localStorage migration.
+  - Idempotent API writes (client ids), Bookmarks API, schema integrity migration.
+  - PWA icons, SPA `_redirects`, security `_headers`, offline deep links.
+  - ErrorBoundary, 404 page, Vitest suite and GitHub Actions CI.

@@ -12,6 +12,7 @@ import {
   Sparkles,
   Clock,
   Target,
+  Search,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -24,6 +25,7 @@ export const Sidebar: React.FC = () => {
   ];
 
   const secondaryNav = [
+    { label: 'Search', path: '/search', icon: Search },
     { label: 'Daily Tracker', path: '/tracker', icon: Clock },
     { label: 'Goals', path: '/goals', icon: Target },
     { label: 'Planner', path: '/planner', icon: Calendar },

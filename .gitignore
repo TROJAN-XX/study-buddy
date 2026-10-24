@@ -52,6 +52,8 @@ packages/*/.env.*.local
 .temp/
 .cache/
 .vite/
+.vitest/
+coverage/
 .eslintcache
 *.tmp
 *.temp

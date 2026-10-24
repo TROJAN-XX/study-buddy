@@ -91,13 +91,16 @@ practice.post('/tests/submit', async (c) => {
 
     // 2. Insert attempts and create mistake records for wrong or uncertain questions
     for (const att of attempts) {
+      // Resolve the attempt id once: the mistake row references it as a FK.
+      const attemptId = att.id || crypto.randomUUID();
+
       statements.push(
         c.env.DB.prepare(`
           INSERT OR REPLACE INTO practice_attempts (
             id, test_id, question_id, selected_answer_json, is_correct, time_seconds, marked_status, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-          att.id || crypto.randomUUID(),
+          attemptId,
           test.id,
           att.questionId,
           JSON.stringify(att.selectedAnswer),
@@ -123,7 +126,7 @@ practice.post('/tests/submit', async (c) => {
           `).bind(
             mistakeId,
             att.questionId,
-            att.id,
+            attemptId,
             att.markedStatus === 'uncertain' && att.isCorrect ? 'guessed_answer' : 'concept_gap',
             null,
             'pending',

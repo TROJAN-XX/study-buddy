@@ -10,6 +10,8 @@ import { GoalsPage } from './features/goals/GoalsPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { RevisionPage } from './features/revision/RevisionPage';
 import { NotebookPage } from './features/notes/NotebookPage';
+import { SearchPage } from './features/search/SearchPage';
+import { NotFoundPage } from './features/NotFoundPage';
 
 export const App: React.FC = () => {
   return (
@@ -24,8 +26,9 @@ export const App: React.FC = () => {
         <Route path="/planner" element={<Navigate to="/goals" replace />} />
         <Route path="/revision" element={<RevisionPage />} />
         <Route path="/notes" element={<NotebookPage />} />
+        <Route path="/search" element={<SearchPage />} />
         <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

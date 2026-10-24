@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Markdown } from '../../components/Markdown';
 import { PackImporterModal } from './PackImporterModal';
 import { apiClient } from '../../lib/api';
 import { EXAMS, SUBJECTS, TOPICS } from '@study-buddy/shared';
@@ -27,18 +29,30 @@ import {
 } from 'lucide-react';
 
 export const LibraryPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isImporterOpen, setIsImporterOpen] = useState<boolean>(false);
 
-  // Filters state
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  // Filters state (search query can be seeded from ?q= by the global search page)
+  const [searchQuery, setSearchQuery] = useState<string>(searchParams.get('q') ?? '');
   const [selectedExam, setSelectedExam] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('');
   const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
+
+  // Keep the URL in sync so a filtered view can be shared or reloaded.
+  useEffect(() => {
+    const current = searchParams.get('q') ?? '';
+    if (current === searchQuery) return;
+
+    const next = new URLSearchParams(searchParams);
+    if (searchQuery) next.set('q', searchQuery);
+    else next.delete('q');
+    setSearchParams(next, { replace: true });
+  }, [searchQuery, searchParams, setSearchParams]);
 
   // Filter topics based on selected subject
   const availableTopics = useMemo(() => {
@@ -362,9 +376,9 @@ export const LibraryPage: React.FC = () => {
                 </div>
 
                 {/* Question Prompt */}
-                <div className="text-sm font-medium text-text leading-relaxed whitespace-pre-line">
+                <div className="text-sm font-medium text-text leading-relaxed">
                   <span className="text-text-muted mr-1.5 font-mono text-xs">Q{idx + 1}.</span>
-                  {q.questionText}
+                  <Markdown content={q.questionText} variant="inline" />
                 </div>
 
                 {/* Multiple Choice Options Grid */}
@@ -390,7 +404,7 @@ export const LibraryPage: React.FC = () => {
                           {opt.id}
                         </span>
                         <span className="min-w-0 flex-1 leading-normal pt-0.5">
-                          {opt.text}
+                          <Markdown content={opt.text} variant="inline" />
                         </span>
                       </div>
                     );
@@ -419,9 +433,9 @@ export const LibraryPage: React.FC = () => {
                     </button>
 
                     {isExpanded && (
-                      <div className="mt-2.5 p-3.5 rounded-xl bg-surface/50 border border-surface-border/70 text-xs text-text-secondary leading-relaxed whitespace-pre-line">
+                      <div className="mt-2.5 p-3.5 rounded-xl bg-surface/50 border border-surface-border/70 text-xs text-text-secondary leading-relaxed">
                         <div className="font-semibold text-text mb-1">Step-by-step Solution:</div>
-                        {q.explanation}
+                        <Markdown content={q.explanation} />
                       </div>
                     )}
                   </div>

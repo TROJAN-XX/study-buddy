@@ -113,7 +113,8 @@ sessionsRoute.post('/', async (c) => {
     }
 
     const input = parseResult.data;
-    const id = crypto.randomUUID();
+    // Honour the client-generated id so offline queue replays stay idempotent.
+    const id = input.id || crypto.randomUUID();
     const now = new Date().toISOString();
 
     await c.env.DB.prepare(

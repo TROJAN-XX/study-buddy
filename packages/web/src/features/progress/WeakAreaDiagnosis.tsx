@@ -32,20 +32,43 @@ interface TopicDiagnosis {
 }
 
 const MINIMUM_SAMPLE_SIZE = 15;
+const DISMISSED_STORAGE_KEY = 'sb_dismissed_weak_topics';
+
+function loadDismissedTopics(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(DISMISSED_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((value): value is string => typeof value === 'string'));
+  } catch {
+    return new Set();
+  }
+}
 
 export const WeakAreaDiagnosis: React.FC = () => {
   const navigate = useNavigate();
   const [attempts, setAttempts] = useState<PracticeAttempt[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [dismissedTopics, setDismissedTopics] = useState<Set<string>>(new Set());
+  const [dismissedTopics, setDismissedTopics] = useState<Set<string>>(loadDismissedTopics);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Dismissals are a user preference, so they survive reloads.
+  useEffect(() => {
+    try {
+      localStorage.setItem(DISMISSED_STORAGE_KEY, JSON.stringify([...dismissedTopics]));
+    } catch {
+      /* ignore quota/security errors */
+    }
+  }, [dismissedTopics]);
 
   useEffect(() => {
     const load = async () => {
       try {
         const [allQuestions, allAttempts] = await Promise.all([
           apiClient.questions.list(),
-          Promise.resolve(storage.getAll<PracticeAttempt>(STORAGE_KEYS.ATTEMPTS)),
+          storage.getAll<PracticeAttempt>(STORAGE_KEYS.ATTEMPTS),
         ]);
         setQuestions(allQuestions);
         setAttempts(allAttempts);

@@ -14,10 +14,13 @@ import practiceRoute from './routes/practice';
 import mistakesRoute from './routes/mistakes';
 import revisionsRoute from './routes/revisions';
 import notesRoute from './routes/notes';
+import bookmarksRoute from './routes/bookmarks';
 
 const app = new Hono<{ Bindings: Env }>();
 
-// CORS middleware
+// CORS middleware — origin restricted via Cloudflare Dashboard or wrangler.toml
+// For single-user Bearer-token auth, CORS origin is secondary security control.
+// Set FRONTEND_URL in wrangler.toml to restrict in production.
 app.use(
   '*',
   cors({
@@ -46,10 +49,28 @@ app.get('/health', (c) => {
   });
 });
 
-// Protect all /api/* routes with Bearer authentication
+// Protect all /api/* and /api/v1/* routes with Bearer authentication
 app.use('/api/*', authMiddleware);
+app.use('/api/v1/*', authMiddleware);
 
-// Mount API route modules
+// Mount API route modules (v1 — versioned)
+const apiV1 = app.basePath('/api/v1');
+
+apiV1.route('/dashboard', dashboardRoute);
+apiV1.route('/sessions', sessionsRoute);
+apiV1.route('/goals', goalsRoute);
+apiV1.route('/exams', examsRoute);
+apiV1.route('', taxonomyRoute); // provides /api/v1/subjects and /api/v1/topics
+apiV1.route('/taxonomy', taxonomyRoute); // provides /api/v1/taxonomy/subjects and /api/v1/taxonomy/topics
+apiV1.route('/questions', questionsRoute);
+apiV1.route('/practice', practiceRoute);
+apiV1.route('/mistakes', mistakesRoute);
+apiV1.route('/revisions', revisionsRoute);
+apiV1.route('/notes', notesRoute);
+apiV1.route('/bookmarks', bookmarksRoute);
+apiV1.route('/backup', backupRoute);
+
+// Mount API route modules (legacy /api/ — maintained for backward compatibility)
 app.route('/api/dashboard', dashboardRoute);
 app.route('/api/sessions', sessionsRoute);
 app.route('/api/goals', goalsRoute);
@@ -61,6 +82,7 @@ app.route('/api/practice', practiceRoute);
 app.route('/api/mistakes', mistakesRoute);
 app.route('/api/revisions', revisionsRoute);
 app.route('/api/notes', notesRoute);
+app.route('/api/bookmarks', bookmarksRoute);
 app.route('/api/backup', backupRoute);
 
 // 404 Not Found Handler

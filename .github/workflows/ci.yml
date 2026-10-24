@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, test & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck all workspaces
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build production PWA
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Upload PWA build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: packages/web/dist
+          retention-days: 7

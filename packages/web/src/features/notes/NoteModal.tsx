@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { Markdown } from '../../components/Markdown';
 import { apiClient } from '../../lib/api';
 import { TAXONOMY } from '@study-buddy/shared';
 import type { Note, NoteType, TaxonomySubject, Topic } from '@study-buddy/shared';
@@ -288,8 +289,12 @@ export const NoteModal: React.FC<NoteModalProps> = ({
           </div>
 
           {isPreview ? (
-            <div className="p-3.5 rounded-xl bg-surface-elevated border border-surface-border min-h-[140px] text-xs text-text-secondary leading-relaxed whitespace-pre-line">
-              {content ? content : <span className="text-text-muted italic">Nothing to preview yet.</span>}
+            <div className="p-3.5 rounded-xl bg-surface-elevated border border-surface-border min-h-[140px]">
+              {content ? (
+                <Markdown content={content} />
+              ) : (
+                <span className="text-xs text-text-muted italic">Nothing to preview yet.</span>
+              )}
             </div>
           ) : (
             <textarea

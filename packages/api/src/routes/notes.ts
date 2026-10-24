@@ -85,7 +85,7 @@ notes.post('/', async (c) => {
 
     const data = parsed.data;
     const now = new Date().toISOString();
-    const id = crypto.randomUUID();
+    const id = data.id || crypto.randomUUID();
 
     await c.env.DB.prepare(`
       INSERT INTO notes (

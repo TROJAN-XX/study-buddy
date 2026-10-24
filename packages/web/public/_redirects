@@ -1,0 +1,8 @@
+# Cloudflare Pages routing
+# Single-page app fallback: any unknown path serves index.html so client-side
+# routing (React Router) works on hard refresh and deep links.
+#
+# The Worker API lives on its own origin (configure VITE_API_URL at build time),
+# so no /api proxy rule is required here.
+
+/*    /index.html   200

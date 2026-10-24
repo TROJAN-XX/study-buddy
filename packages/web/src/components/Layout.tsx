@@ -2,7 +2,8 @@ import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
-import { Sparkles, Clock, Target, Settings } from 'lucide-react';
+import { NetworkStatus } from './NetworkStatus';
+import { Sparkles, Clock, Target, Settings, Search } from 'lucide-react';
 
 export const Layout: React.FC = () => {
   const location = useLocation();
@@ -27,6 +28,13 @@ export const Layout: React.FC = () => {
             </span>
           </Link>
           <div className="flex items-center gap-1.5">
+            <Link
+              to="/search"
+              aria-label="Search"
+              className="p-2 text-text-secondary hover:text-text hover:bg-surface-elevated rounded-lg transition-colors"
+            >
+              <Search className="w-4 h-4" />
+            </Link>
             <Link
               to="/tracker"
               aria-label="Tracker"
@@ -61,6 +69,7 @@ export const Layout: React.FC = () => {
 
         {/* Mobile Bottom Navigation (hidden on desktop) */}
         <BottomNav />
+        <NetworkStatus />
       </div>
     </div>
   );

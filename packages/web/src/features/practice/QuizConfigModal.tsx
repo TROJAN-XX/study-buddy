@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
@@ -6,6 +6,7 @@ import { Badge } from '../../components/ui/Badge';
 import { EXAMS, SUBJECTS, TOPICS } from '@study-buddy/shared';
 import type { Question, TestType, Difficulty } from '@study-buddy/shared';
 import { Play, Sparkles, Clock, BookOpen, Layers } from 'lucide-react';
+import { shuffle } from '../../lib/utils';
 
 export interface QuizConfig {
   title: string;
@@ -43,6 +44,14 @@ export const QuizConfigModal: React.FC<QuizConfigModalProps> = ({
   const [mode, setMode] = useState<'practice' | 'exam'>('practice');
   const [timeLimit, setTimeLimit] = useState<number>(15);
 
+  // The modal stays mounted between openings, so presets must be re-applied
+  // each time it opens (e.g. from the dashboard's weak-topic shortcuts).
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedSubject(initialSubject || '');
+    setSelectedTopic(initialTopic || '');
+  }, [isOpen, initialSubject, initialTopic]);
+
   const availableTopics = useMemo(() => {
     if (!selectedSubject) return TOPICS;
     const foundSubject = SUBJECTS.find((s) => s.name === selectedSubject);
@@ -63,8 +72,8 @@ export const QuizConfigModal: React.FC<QuizConfigModalProps> = ({
   const handleStart = () => {
     if (matchingQuestions.length === 0) return;
 
-    // Shuffle and pick requested count
-    const shuffled = [...matchingQuestions].sort(() => 0.5 - Math.random());
+    // Shuffle (Fisher-Yates) and pick requested count
+    const shuffled = shuffle(matchingQuestions);
     const selected = shuffled.slice(0, questionCount);
 
     const title = selectedTopic

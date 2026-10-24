@@ -138,7 +138,9 @@ export const CurrentAffairsFeed: React.FC<CurrentAffairsFeedProps> = ({
               variant="secondary"
               size="sm"
               icon={<Flame className="w-4 h-4 text-amber-400 fill-current" />}
-              onClick={() => navigate('/practice')}
+              onClick={() =>
+                navigate('/practice', { state: { presetSubject: 'Current Affairs' } })
+              }
             >
               Practice CA Recall Quiz
             </Button>

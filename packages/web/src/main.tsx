@@ -3,15 +3,14 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { initBackgroundSync } from './lib/sync';
 
-// Basic service worker registration in production
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.log('SW registration error:', err);
-    });
-  });
-}
+// Flush the offline mutation queue on startup, when connectivity returns and
+// on a 30s interval while online.
+initBackgroundSync();
+
+// The service worker itself is registered by vite-plugin-pwa (autoUpdate).
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -20,8 +19,10 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>
 );

@@ -16,6 +16,19 @@ export function generateId(): string {
 }
 
 /**
+ * Fisher-Yates shuffle. Returns a new array; the input is not mutated.
+ * Unlike `sort(() => Math.random() - 0.5)` this is unbiased and O(n).
+ */
+export function shuffle<T>(items: readonly T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+/**
  * Format date to YYYY-MM-DD string in local time
  */
 export function getToday(): string {

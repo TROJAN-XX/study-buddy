@@ -5,6 +5,7 @@ const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 // ─── Study Sessions ──────────────────────────────────────────
 
 export const createSessionSchema = z.object({
+  id: z.string().min(1).optional(),
   date: z.string().regex(dateRegex, 'Date must be in YYYY-MM-DD format'),
   examId: z.string().nullable().optional(),
   subject: z.string().trim().min(1, 'Subject is required'),
@@ -40,6 +41,7 @@ export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 // ─── Daily Goals ─────────────────────────────────────────────
 
 export const createGoalSchema = z.object({
+  id: z.string().min(1).optional(),
   date: z.string().regex(dateRegex, 'Date must be in YYYY-MM-DD format'),
   subject: z.string().trim().min(1, 'Subject is required'),
   topic: z.string().trim().min(1, 'Topic is required'),
@@ -275,6 +277,7 @@ export type RescheduleRevisionInput = z.infer<typeof rescheduleRevisionSchema>;
 // ─── Notes ─────────────────────────────────────────────────────
 
 export const createNoteSchema = z.object({
+  id: z.string().min(1).optional(),
   title: z.string().trim().min(1, 'Title is required'),
   content: z.string().default(''),
   subject: z.string().nullable().optional(),
@@ -304,3 +307,13 @@ export const updateNoteSchema = z.object({
 
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
+
+// ─── Bookmarks ─────────────────────────────────────────────────
+
+export const createBookmarkSchema = z.object({
+  id: z.string().min(1).optional(),
+  targetType: z.enum(['question', 'note', 'topic']),
+  targetId: z.string().min(1, 'Target id is required'),
+});
+
+export type CreateBookmarkInput = z.infer<typeof createBookmarkSchema>;

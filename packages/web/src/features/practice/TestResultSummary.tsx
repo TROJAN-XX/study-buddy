@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { Markdown } from '../../components/Markdown';
 import { formatDuration } from '../../lib/utils';
 import { apiClient, type MistakeDetail } from '../../lib/api';
 import { MistakeClassificationModal } from '../revision/MistakeClassificationModal';
@@ -379,8 +380,8 @@ export const TestResultSummary: React.FC<TestResultSummaryProps> = ({
                 </div>
 
                 {/* Prompt */}
-                <div className="text-sm font-medium text-text whitespace-pre-line leading-relaxed">
-                  {q.questionText}
+                <div className="text-sm font-medium text-text leading-relaxed">
+                  <Markdown content={q.questionText} variant="inline" />
                 </div>
 
                 {/* Options display */}
@@ -402,7 +403,9 @@ export const TestResultSummary: React.FC<TestResultSummaryProps> = ({
                           <span className="w-5 h-5 rounded font-bold text-[11px] flex items-center justify-center bg-surface/60">
                             {opt.id}
                           </span>
-                          <span>{opt.text}</span>
+                          <span>
+                            <Markdown content={opt.text} variant="inline" />
+                          </span>
                         </div>
                         {isOptionCorrect && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
                         {isUserPick && !isOptionCorrect && <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />}
@@ -433,9 +436,9 @@ export const TestResultSummary: React.FC<TestResultSummaryProps> = ({
                     </button>
 
                     {isExpanded && (
-                      <div className="mt-2 p-3 rounded-xl bg-surface/60 border border-surface-border text-xs text-text-secondary leading-relaxed whitespace-pre-line">
+                      <div className="mt-2 p-3 rounded-xl bg-surface/60 border border-surface-border text-xs text-text-secondary leading-relaxed">
                         <div className="font-semibold text-text mb-1">Working & Reasoning:</div>
-                        {q.explanation}
+                        <Markdown content={q.explanation} />
                       </div>
                     )}
                   </div>

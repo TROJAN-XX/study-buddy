@@ -36,19 +36,22 @@ study-buddy/
 ├── packages/api/                 # Cloudflare Worker API (@study-buddy/api)
 │   ├── src/index.ts              # Hono application root with CORS, auth, and routing
 │   ├── src/middleware/auth.ts    # Bearer token validation against env.API_TOKEN
-│   ├── src/db/migrations/        # D1 SQLite schema (0001_initial_schema.sql, 0002_seed_data.sql)
+│   ├── src/db/migrations/        # D1 SQLite schema (0001_initial_schema.sql, 0002_seed_data.sql, 0003_integrity_indexes.sql)
 │   ├── src/db/mappers.ts         # DB snake_case ↔ Domain camelCase bidirectional mappers
 │   ├── src/validation/schemas.ts # Zod runtime request validators
-│   └── src/routes/               # Hono route handlers (dashboard, sessions, goals, backup...)
+│   └── src/routes/               # Hono route handlers (dashboard, sessions, goals, practice, bookmarks, backup...)
+├── tests/                        # Vitest unit suite (question packs, API schemas, utilities)
 └── packages/web/                 # React 18 PWA (@study-buddy/web)
     ├── vite.config.ts            # Vite + VitePWA + Path Aliases
     ├── tailwind.config.js        # Charcoal palette (#0a0a0a, #141414, #1a1a1a, #6b8afd)
-    ├── src/main.tsx              # App entry & service worker registration
-    ├── src/App.tsx               # Top-level route switch
-    ├── src/components/           # Layout, Sidebar, BottomNav, and atomic UI components
-    ├── src/lib/storage.ts        # Offline LocalStorage CRUD repository
-    ├── src/lib/api.ts            # Unified API client with automatic offline fallback
-    └── src/features/             # Feature slices: dashboard, tracker, goals, practice, library...
+    ├── src/main.tsx              # App entry, ErrorBoundary & background sync bootstrap
+    ├── src/App.tsx               # Top-level route switch (includes /search and 404)
+    ├── src/components/           # Layout, Sidebar, BottomNav, Markdown (KaTeX), NetworkStatus, ErrorBoundary
+    ├── src/lib/storage.ts        # IndexedDB repository + offline mutation queue + localStorage fallback
+    ├── src/lib/http.ts           # API base URL, Bearer auth, typed success/failure results
+    ├── src/lib/sync.ts           # Queue processor (startup / online / 30s flush)
+    ├── src/lib/api.ts            # Local-first API client with remote read-through
+    └── src/features/             # Feature slices: dashboard, tracker, goals, practice, library, search...
 ```
 
 ---
@@ -79,11 +82,15 @@ Before completing any task or ending a turn, you **MUST** run the verification s
 # 1. Verify TypeScript compiles across shared, api, and web packages
 npm run typecheck
 
-# 2. Verify that the production PWA and Service Worker build cleanly
+# 2. Run the Vitest unit suite
+npm test
+
+# 3. Verify that the production PWA and Service Worker build cleanly
 npm run build
 ```
 
-Both commands must exit with code 0. If any TypeScript errors or Vite bundler warnings appear, resolve them before notifying the user.
+`npm run verify` runs all three in sequence. All commands must exit with code 0. If any TypeScript
+errors, failing tests, or Vite bundler warnings appear, resolve them before notifying the user.
 
 ---
 
@@ -91,33 +98,33 @@ Both commands must exit with code 0. If any TypeScript errors or Vite bundler wa
 
 Refer to [`PENDING_WORK.md`](./PENDING_WORK.md) for the detailed backlog. When picking up a new phase:
 
-### Implementing Phase 2: Question Library & Practice Engine
-1. **JSON Question Pack Validator**:
-   - Inspect the example schema in the original prompt (`question_json_schema_example`).
-   - Create Zod schema in `packages/api/src/validation/question-pack.ts` or `shared/src/schemas.ts`.
-   - Implement row-level error reporting (return `errors: [{ row: 12, field: 'answer', message: '...' }]`).
-2. **Question Library UI**:
-   - Implement `packages/web/src/features/library/LibraryPage.tsx`.
-   - Add pack import modal with drag-and-drop JSON file upload.
-   - Add search input and multi-select filters for Exam, Year, Subject, Topic, and Difficulty.
-3. **Practice Runner**:
-   - Replace placeholder in `packages/web/src/features/practice/PracticePage.tsx`.
-   - Build `QuizConfigModal` (question count, subjects, timed vs untimed).
-   - Build `QuizRunner` with keyboard navigation, option select, and review marking.
-   - Record completed attempts into `practice_attempts` and `practice_tests`.
+### Implementing New Work
+`PENDING_WORK.md` is the single source of truth for what remains. Phases 1–5 and the v1.1.0
+hardening release are complete; the remaining backlog is product refinements (note↔question
+linking, revision endpoint parity) and quality work (E2E tests, linting, accessibility).
 
-### Implementing Phase 3: Mistake Book & Mock Analysis
-1. Post-test results screen with sectional breakdown and time pace.
-2. Error classifier modal (`concept_gap`, `calculation_error`, `misread_question`, `guessed_answer`, `time_pressure`).
-3. Store mistakes into `mistakes` table/collection and link to revision items.
+### Data & Sync Rules (non-negotiable)
 
-### Implementing Phase 4: Revision Scheduler & Weak-Area Diagnosis
-1. Spaced repetition queue using modified SM-2 algorithm (1, 3, 7, 14 days interval).
-2. Diagnostic engine with **minimum 15-attempt sample size safeguard** before labeling a topic weak.
+1. **Local-first writes**: all mutations go through `storage.create/update/remove`, which persist to
+   IndexedDB *and* enqueue a `SyncMutation`. Never add a second direct `POST`/`PUT`/`DELETE` in
+   `apiClient` for the same change — that causes duplicate server rows.
+2. **Queue acknowledgements**: entries are removed only after a successful `{ success: true }`
+   response. `flushSyncQueue()` stops at the first failure to preserve ordering.
+3. **Idempotency**: the client generates UUIDs and the API must honour `body.id` for create
+   endpoints (sessions, goals, notes, bookmarks). Keep this when adding routes.
+4. **Atomic submissions**: practice tests and attempts are sent together via the queued
+   `submit_test` mutation to `/practice/tests/submit`; the server derives mistake/revision rows.
+5. **Bulk writes**: `storage.setAll()` deliberately does not queue — use it only for flows that
+   own a dedicated bulk endpoint (backup restore, carry-forward, reschedule, test submission).
+6. **Reads**: remote-first with local fallback (`requestApi` returns `null` on any failure). The app
+   must remain fully functional with `VITE_API_URL` unset.
+7. **Schema changes**: `0001_initial_schema.sql` is canonical for fresh databases. Existing
+   databases need a new idempotent migration (`0003_integrity_indexes.sql` is the template).
+   SQLite cannot add CHECK constraints in place — use `CREATE ... INDEX IF NOT EXISTS` or a
+   table-rebuild migration.
+8. **Markdown & math**: render user content with `components/Markdown.tsx` (KaTeX, `trust: false`,
+   raw HTML neutralised). Never inject note/question text with `dangerouslySetInnerHTML` directly.
 
-### Implementing Phase 5: Study Notebook, Current Affairs & Polish
-1. Markdown formula and concept notebook with KaTeX support.
-2. Chronological current affairs feed with date filtering and quick recall quizzes.
 
 ---
 

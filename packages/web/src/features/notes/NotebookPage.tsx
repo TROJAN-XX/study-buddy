@@ -3,6 +3,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Markdown } from '../../components/Markdown';
 import { NoteModal } from './NoteModal';
 import { CurrentAffairsFeed } from './CurrentAffairsFeed';
 import { apiClient } from '../../lib/api';
@@ -399,9 +400,9 @@ export const NotebookPage: React.FC = () => {
                         {note.title}
                       </h3>
 
-                      {/* Content Box with Formula styling */}
-                      <div className="p-3.5 rounded-xl bg-surface-elevated/70 border border-surface-border/60 text-xs text-text-secondary leading-relaxed font-mono whitespace-pre-line">
-                        {note.content}
+                      {/* Content Box with Markdown + KaTeX rendering */}
+                      <div className="p-3.5 rounded-xl bg-surface-elevated/70 border border-surface-border/60">
+                        <Markdown content={note.content} />
                       </div>
                     </div>
 

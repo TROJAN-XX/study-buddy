@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -24,6 +25,8 @@ import {
 } from 'lucide-react';
 
 export const PracticePage: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [viewState, setViewState] = useState<'hub' | 'running' | 'result'>('hub');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [pastTests, setPastTests] = useState<PracticeTest[]>([]);
@@ -58,6 +61,20 @@ export const PracticePage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Deep link from the Current Affairs feed: open the quiz config pre-filtered.
+  useEffect(() => {
+    const state = location.state as
+      | { presetSubject?: string; presetTopic?: string }
+      | null;
+
+    if (!state?.presetSubject && !state?.presetTopic) return;
+
+    setPresetSubject(state.presetSubject);
+    setPresetTopic(state.presetTopic);
+    setIsConfigOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location, navigate]);
 
   const handleStartQuiz = (config: QuizConfig, selectedQuestions: Question[]) => {
     setActiveConfig(config);

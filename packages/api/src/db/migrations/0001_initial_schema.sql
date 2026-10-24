@@ -1,4 +1,10 @@
 -- Migration 0001: Initial Schema
+-- Canonical schema for fresh databases. Includes foreign keys, JSON validity
+-- checks and uniqueness constraints. For databases created before these
+-- constraints existed, apply 0003_integrity_indexes.sql.
+--
+-- Note: D1 enforces foreign keys by default; a PRAGMA here would only affect
+-- the connection that runs the migration, so it is intentionally omitted.
 
 CREATE TABLE IF NOT EXISTS exams (
   id TEXT PRIMARY KEY,
@@ -36,12 +42,12 @@ CREATE TABLE IF NOT EXISTS questions (
   difficulty TEXT NOT NULL,
   question_type TEXT NOT NULL,
   question_text TEXT NOT NULL,
-  options_json TEXT NOT NULL,
-  answer_json TEXT NOT NULL,
+  options_json TEXT NOT NULL CHECK (json_valid(options_json)),
+  answer_json TEXT NOT NULL CHECK (json_valid(answer_json)),
   explanation TEXT,
-  source_json TEXT,
+  source_json TEXT CHECK (source_json IS NULL OR json_valid(source_json)),
   verification_status TEXT NOT NULL DEFAULT 'unverified',
-  tags_json TEXT NOT NULL DEFAULT '[]',
+  tags_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(tags_json)),
   pack_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -83,7 +89,7 @@ CREATE TABLE IF NOT EXISTS practice_tests (
   title TEXT NOT NULL,
   exam TEXT,
   type TEXT NOT NULL,
-  config_json TEXT NOT NULL,
+  config_json TEXT NOT NULL CHECK (json_valid(config_json)),
   time_limit_minutes INTEGER,
   status TEXT NOT NULL DEFAULT 'in_progress',
   score INTEGER,
@@ -96,8 +102,8 @@ CREATE TABLE IF NOT EXISTS practice_tests (
 CREATE TABLE IF NOT EXISTS practice_attempts (
   id TEXT PRIMARY KEY,
   test_id TEXT NOT NULL REFERENCES practice_tests(id) ON DELETE CASCADE,
-  question_id TEXT NOT NULL,
-  selected_answer_json TEXT NOT NULL,
+  question_id TEXT NOT NULL REFERENCES questions(id),
+  selected_answer_json TEXT NOT NULL CHECK (json_valid(selected_answer_json)),
   is_correct INTEGER NOT NULL DEFAULT 0,
   time_seconds INTEGER,
   marked_status TEXT NOT NULL DEFAULT 'none',
@@ -106,8 +112,8 @@ CREATE TABLE IF NOT EXISTS practice_attempts (
 
 CREATE TABLE IF NOT EXISTS mistakes (
   id TEXT PRIMARY KEY,
-  question_id TEXT NOT NULL,
-  attempt_id TEXT NOT NULL,
+  question_id TEXT NOT NULL REFERENCES questions(id),
+  attempt_id TEXT NOT NULL REFERENCES practice_attempts(id),
   error_type TEXT NOT NULL,
   notes TEXT,
   revision_status TEXT NOT NULL DEFAULT 'pending',
@@ -137,9 +143,9 @@ CREATE TABLE IF NOT EXISTS notes (
   content TEXT NOT NULL,
   subject TEXT,
   topic TEXT,
-  tags_json TEXT NOT NULL DEFAULT '[]',
+  tags_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(tags_json)),
   type TEXT NOT NULL,
-  exam_relevance_json TEXT NOT NULL DEFAULT '[]',
+  exam_relevance_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(exam_relevance_json)),
   source_url TEXT,
   source_name TEXT,
   event_date TEXT,
@@ -152,7 +158,8 @@ CREATE TABLE IF NOT EXISTS bookmarks (
   id TEXT PRIMARY KEY,
   target_type TEXT NOT NULL,
   target_id TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  UNIQUE(target_type, target_id)
 );
 
 -- Indexes
@@ -160,7 +167,10 @@ CREATE INDEX IF NOT EXISTS idx_questions_exam_subject_topic ON questions(exam, s
 CREATE INDEX IF NOT EXISTS idx_study_sessions_date ON study_sessions(date);
 CREATE INDEX IF NOT EXISTS idx_daily_goals_date_status ON daily_goals(date, status);
 CREATE INDEX IF NOT EXISTS idx_practice_attempts_test_id ON practice_attempts(test_id);
+CREATE INDEX IF NOT EXISTS idx_practice_attempts_question_id ON practice_attempts(question_id);
 CREATE INDEX IF NOT EXISTS idx_mistakes_question_id ON mistakes(question_id);
+CREATE INDEX IF NOT EXISTS idx_mistakes_attempt_id ON mistakes(attempt_id);
 CREATE INDEX IF NOT EXISTS idx_revision_items_next_review_status ON revision_items(next_review, status);
+CREATE INDEX IF NOT EXISTS idx_revision_items_source ON revision_items(source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_notes_subject_topic_type ON notes(subject, topic, type);
 CREATE INDEX IF NOT EXISTS idx_bookmarks_target ON bookmarks(target_type, target_id);
